@@ -8,7 +8,7 @@ namespace AnimalFinderDesktop
 {
     internal static class Program
     {
-        [STAThread]
+        [STAThread]123
         static void Main()
         {
             Application.EnableVisualStyles();

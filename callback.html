@@ -3,37 +3,92 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AnimalFinder — Подтверждение</title>
+    <title>AnimalFinder — Сброс пароля</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            padding: 32px;
+            max-width: 450px;
+            width: 100%;
+            text-align: center;
+        }
+        .success-icon { font-size: 64px; margin-bottom: 16px; }
+        .reset-icon { font-size: 64px; margin-bottom: 16px; }
+        h2 { color: #333; margin-bottom: 12px; font-size: 24px; }
+        p { color: #666; margin-bottom: 24px; line-height: 1.5; }
+        .input-group { text-align: left; margin-bottom: 20px; }
+        label { display: block; font-weight: 500; margin-bottom: 8px; color: #333; }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+        input:focus { outline: none; border-color: #007bff; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.2s;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .message { margin-top: 16px; padding: 10px; border-radius: 8px; font-size: 14px; display: none; }
+        .message.success { background: #d4edda; color: #155724; display: block; }
+        .message.error { background: #f8d7da; color: #721c24; display: block; }
+        .close-btn {
+            background: #6c757d;
+            margin-top: 16px;
+        }
+        .close-btn:hover { background: #5a6268; }
+    </style>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen font-sans antialiased">
-    <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
-        <!-- Блок для подтверждения email -->
-        <div id="confirm-container" style="display: none;" class="text-center">
-            <div class="text-green-600 text-5xl mb-4">✓</div>
-            <h2 class="text-2xl font-bold text-gray-800 mb-2">Email подтверждён!</h2>
-            <p class="text-gray-600 mb-6">Ваш адрес электронной почты успешно подтверждён. Теперь вы можете закрыть это окно и войти в приложение.</p>
-            <button onclick="window.close()" class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Закрыть окно</button>
+<body>
+    <div class="card" id="app">
+        <!-- Блок подтверждения email (показывается только для signup) -->
+        <div id="confirm-container" style="display: none;">
+            <div class="success-icon">✅</div>
+            <h2>Email подтверждён!</h2>
+            <p>Ваш адрес электронной почты успешно подтверждён. Теперь вы можете закрыть это окно и войти в приложение.</p>
+            <button class="close-btn" onclick="window.close()">Закрыть окно</button>
         </div>
 
-        <!-- Блок для сброса пароля -->
-        <div id="reset-container" style="display: none;" class="text-center">
-            <div class="text-blue-600 text-5xl mb-4">🔑</div>
-            <h2 class="text-2xl font-bold text-gray-800 mb-2">Сброс пароля</h2>
-            <p class="text-gray-600 mb-6">Введите и подтвердите ваш новый пароль.</p>
-            <div class="space-y-4 text-left">
-                <div>
-                    <label for="new-password" class="block text-sm font-medium text-gray-700 mb-1">Новый пароль</label>
-                    <input type="password" id="new-password" class="w-full px-3 py-2 border border-gray-300 rounded-md">
-                </div>
-                <div>
-                    <label for="confirm-password" class="block text-sm font-medium text-gray-700 mb-1">Подтвердите пароль</label>
-                    <input type="password" id="confirm-password" class="w-full px-3 py-2 border border-gray-300 rounded-md">
-                </div>
-                <button id="reset-password-btn" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Сохранить пароль</button>
+        <!-- Блок сброса пароля (показывается только для recovery) -->
+        <div id="reset-container" style="display: none;">
+            <div class="reset-icon">🔑</div>
+            <h2>Сброс пароля</h2>
+            <p>Введите и подтвердите ваш новый пароль.</p>
+            <div class="input-group">
+                <label for="new-password">Новый пароль</label>
+                <input type="password" id="new-password" placeholder="Минимум 6 символов">
             </div>
-            <div id="reset-message" class="mt-4 text-sm text-red-600 hidden"></div>
+            <div class="input-group">
+                <label for="confirm-password">Подтвердите пароль</label>
+                <input type="password" id="confirm-password" placeholder="Повторите пароль">
+            </div>
+            <button id="reset-btn">Сохранить пароль</button>
+            <div id="message" class="message"></div>
         </div>
     </div>
 
@@ -43,14 +98,12 @@
         
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+        // Получение параметров из URL
         function getUrlParams() {
-            const hashParams = new URLSearchParams(window.location.hash.substring(1));
-            const searchParams = new URLSearchParams(window.location.search);
+            const params = new URLSearchParams(window.location.search);
             return {
-                access_token: hashParams.get('access_token') || searchParams.get('access_token'),
-                refresh_token: hashParams.get('refresh_token') || searchParams.get('refresh_token'),
-                type: hashParams.get('type') || searchParams.get('type'),
-                token_hash: hashParams.get('token_hash') || searchParams.get('token_hash')
+                token_hash: params.get('token_hash'),
+                type: params.get('type')
             };
         }
 
@@ -60,91 +113,102 @@
             const resetContainer = document.getElementById('reset-container');
 
             console.log('Параметры URL:', params);
-
-            // Если тип не определён — пробуем определить по наличию access_token
-            let effectiveType = params.type;
-            if (!effectiveType && params.access_token) {
-                const { data: { user } } = await supabase.auth.getUser(params.access_token);
-                effectiveType = user ? 'recovery' : 'signup';
-            }
+            console.log('Тип:', params.type);
 
             // Обработка сброса пароля
-            if (effectiveType === 'recovery' || (params.token_hash && !params.type)) {
+            if (params.type === 'recovery' && params.token_hash) {
                 resetContainer.style.display = 'block';
                 
                 const newPasswordInput = document.getElementById('new-password');
                 const confirmPasswordInput = document.getElementById('confirm-password');
-                const resetButton = document.getElementById('reset-password-btn');
-                const messageDiv = document.getElementById('reset-message');
+                const resetBtn = document.getElementById('reset-btn');
+                const messageDiv = document.getElementById('message');
 
-                resetButton.addEventListener('click', async () => {
+                resetBtn.addEventListener('click', async () => {
                     const newPassword = newPasswordInput.value;
                     const confirmPassword = confirmPasswordInput.value;
-                    messageDiv.classList.add('hidden');
+                    
+                    // Скрыть предыдущее сообщение
+                    messageDiv.className = 'message';
+                    messageDiv.style.display = 'none';
 
+                    // Валидация
                     if (newPassword !== confirmPassword) {
-                        showMessage('Пароли не совпадают', true);
+                        messageDiv.textContent = '❌ Пароли не совпадают';
+                        messageDiv.className = 'message error';
+                        messageDiv.style.display = 'block';
                         return;
                     }
                     if (newPassword.length < 6) {
-                        showMessage('Пароль должен содержать не менее 6 символов', true);
+                        messageDiv.textContent = '❌ Пароль должен содержать не менее 6 символов';
+                        messageDiv.className = 'message error';
+                        messageDiv.style.display = 'block';
                         return;
                     }
 
-                    resetButton.disabled = true;
-                    resetButton.textContent = 'Сохранение...';
+                    resetBtn.disabled = true;
+                    resetBtn.textContent = 'Сохранение...';
 
                     try {
-                        if (params.token_hash) {
-                            const { error } = await supabase.auth.verifyOtp({
-                                token_hash: params.token_hash,
-                                type: 'recovery'
-                            });
-                            if (error) throw error;
-                        }
-                        
-                        const { error } = await supabase.auth.updateUser({ password: newPassword });
+                        // Верифицируем токен и меняем пароль
+                        const { error } = await supabase.auth.verifyOtp({
+                            token_hash: params.token_hash,
+                            type: 'recovery'
+                        });
+
                         if (error) throw error;
 
-                        showMessage('Пароль успешно изменён! Теперь вы можете закрыть это окно.', false);
-                        resetButton.disabled = true;
+                        // Обновляем пароль
+                        const { error: updateError } = await supabase.auth.updateUser({ 
+                            password: newPassword 
+                        });
+
+                        if (updateError) throw updateError;
+
+                        messageDiv.textContent = '✅ Пароль успешно изменён! Теперь вы можете закрыть это окно.';
+                        messageDiv.className = 'message success';
+                        messageDiv.style.display = 'block';
+                        resetBtn.disabled = true;
+                        resetBtn.textContent = 'Готово';
+                        
+                        // Выход из системы, чтобы пользователь вошёл с новым паролем
                         await supabase.auth.signOut();
                     } catch (error) {
-                        showMessage(error.message, true);
-                        resetButton.disabled = false;
-                        resetButton.textContent = 'Сохранить пароль';
+                        console.error('Ошибка:', error);
+                        messageDiv.textContent = `❌ ${error.message || 'Произошла ошибка при сбросе пароля'}`;
+                        messageDiv.className = 'message error';
+                        messageDiv.style.display = 'block';
+                        resetBtn.disabled = false;
+                        resetBtn.textContent = 'Сохранить пароль';
                     }
                 });
                 return;
             }
 
             // Обработка подтверждения email
-            if (effectiveType === 'signup' || effectiveType === 'email_change' || (!effectiveType && params.token_hash)) {
-                if (params.token_hash) {
-                    try {
-                        const { error } = await supabase.auth.verifyOtp({
-                            token_hash: params.token_hash,
-                            type: 'signup'
-                        });
-                        if (error) throw error;
-                    } catch (error) {
-                        console.warn('Ошибка верификации:', error);
-                    }
+            if (params.type === 'signup' && params.token_hash) {
+                try {
+                    const { error } = await supabase.auth.verifyOtp({
+                        token_hash: params.token_hash,
+                        type: 'signup'
+                    });
+                    if (error) throw error;
+                } catch (error) {
+                    console.warn('Ошибка верификации email:', error);
                 }
                 confirmContainer.style.display = 'block';
                 return;
             }
 
-            // Если ничего не подошло — показываем подтверждение как запасной вариант
+            // Если тип не определён — показываем сообщение об ошибке
             confirmContainer.style.display = 'block';
+            const h2 = confirmContainer.querySelector('h2');
+            const p = confirmContainer.querySelector('p');
+            if (h2) h2.textContent = 'Неизвестная ссылка';
+            if (p) p.innerHTML = 'Возможно, ссылка устарела или неверна. Пожалуйста, запросите новое письмо.';
+            const btn = confirmContainer.querySelector('button');
+            if (btn) btn.textContent = 'Закрыть';
         });
-
-        function showMessage(message, isError) {
-            const messageDiv = document.getElementById('reset-message');
-            messageDiv.textContent = message;
-            messageDiv.classList.remove('hidden', 'text-red-600', 'text-green-600');
-            messageDiv.classList.add(isError ? 'text-red-600' : 'text-green-600');
-        }
     </script>
 </body>
 </html>

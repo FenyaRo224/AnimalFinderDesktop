@@ -4,22 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AnimalFinder — Подтверждение</title>
-    <!-- Supabase CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- tailwindcss CDN для быстрых стилей (необязательно) -->
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen font-sans antialiased">
     <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
-        <!-- Блок для подтверждения email (по умолчанию скрыт) -->
+        <!-- Блок для подтверждения email -->
         <div id="confirm-container" style="display: none;" class="text-center">
             <div class="text-green-600 text-5xl mb-4">✓</div>
             <h2 class="text-2xl font-bold text-gray-800 mb-2">Email подтверждён!</h2>
             <p class="text-gray-600 mb-6">Ваш адрес электронной почты успешно подтверждён. Теперь вы можете закрыть это окно и войти в приложение.</p>
-            <button onclick="window.close()" class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-150">Закрыть окно</button>
+            <button onclick="window.close()" class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Закрыть окно</button>
         </div>
 
-        <!-- Блок для сброса пароля (по умолчанию скрыт) -->
+        <!-- Блок для сброса пароля -->
         <div id="reset-container" style="display: none;" class="text-center">
             <div class="text-blue-600 text-5xl mb-4">🔑</div>
             <h2 class="text-2xl font-bold text-gray-800 mb-2">Сброс пароля</h2>
@@ -27,13 +25,13 @@
             <div class="space-y-4 text-left">
                 <div>
                     <label for="new-password" class="block text-sm font-medium text-gray-700 mb-1">Новый пароль</label>
-                    <input type="password" id="new-password" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    <input type="password" id="new-password" class="w-full px-3 py-2 border border-gray-300 rounded-md">
                 </div>
                 <div>
                     <label for="confirm-password" class="block text-sm font-medium text-gray-700 mb-1">Подтвердите пароль</label>
-                    <input type="password" id="confirm-password" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    <input type="password" id="confirm-password" class="w-full px-3 py-2 border border-gray-300 rounded-md">
                 </div>
-                <button id="reset-password-btn" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-150">Сохранить пароль</button>
+                <button id="reset-password-btn" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Сохранить пароль</button>
             </div>
             <div id="reset-message" class="mt-4 text-sm text-red-600 hidden"></div>
         </div>
@@ -45,34 +43,35 @@
         
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // --- Вспомогательная функция для получения параметров из URL ---
         function getUrlParams() {
-            const params = new URLSearchParams(window.location.hash.substring(1) || window.location.search);
+            const hashParams = new URLSearchParams(window.location.hash.substring(1));
+            const searchParams = new URLSearchParams(window.location.search);
             return {
-                access_token: params.get('access_token'),
-                refresh_token: params.get('refresh_token'),
-                token: params.get('token'),
-                type: params.get('type')
+                access_token: hashParams.get('access_token') || searchParams.get('access_token'),
+                refresh_token: hashParams.get('refresh_token') || searchParams.get('refresh_token'),
+                type: hashParams.get('type') || searchParams.get('type'),
+                token_hash: hashParams.get('token_hash') || searchParams.get('token_hash')
             };
         }
 
-        // --- Основная логика при загрузке страницы ---
         window.addEventListener('DOMContentLoaded', async () => {
             const params = getUrlParams();
             const confirmContainer = document.getElementById('confirm-container');
             const resetContainer = document.getElementById('reset-container');
 
-            // 1. Обработка подтверждения email (type = 'signup')
-            if (params.type === 'signup') {
-                // Если мы здесь, значит Supabase уже подтвердил токен, просто показываем приятное сообщение
-                confirmContainer.style.display = 'block';
-                console.log('Email подтверждён!');
-                return;
+            console.log('Параметры URL:', params);
+
+            // Если тип не определён — пробуем определить по наличию access_token
+            let effectiveType = params.type;
+            if (!effectiveType && params.access_token) {
+                const { data: { user } } = await supabase.auth.getUser(params.access_token);
+                effectiveType = user ? 'recovery' : 'signup';
             }
 
-            // 2. Обработка сброса пароля (type = 'recovery')
-            if (params.type === 'recovery') {
+            // Обработка сброса пароля
+            if (effectiveType === 'recovery' || (params.token_hash && !params.type)) {
                 resetContainer.style.display = 'block';
+                
                 const newPasswordInput = document.getElementById('new-password');
                 const confirmPasswordInput = document.getElementById('confirm-password');
                 const resetButton = document.getElementById('reset-password-btn');
@@ -96,23 +95,22 @@
                     resetButton.textContent = 'Сохранение...';
 
                     try {
-                        // Устанавливаем сессию из параметров URL
-                        if (!params.access_token) throw new Error('Не найден токен доступа в URL.');
-                        await supabase.auth.setSession({
-                            access_token: params.access_token,
-                            refresh_token: params.refresh_token
-                        });
-                        // Обновляем пароль
+                        if (params.token_hash) {
+                            const { error } = await supabase.auth.verifyOtp({
+                                token_hash: params.token_hash,
+                                type: 'recovery'
+                            });
+                            if (error) throw error;
+                        }
+                        
                         const { error } = await supabase.auth.updateUser({ password: newPassword });
-                        if (error) throw new Error(error.message);
+                        if (error) throw error;
 
-                        showMessage('Пароль успешно изменён! Теперь вы можете закрыть это окно и войти.', false);
+                        showMessage('Пароль успешно изменён! Теперь вы можете закрыть это окно.', false);
                         resetButton.disabled = true;
-                        // Опционально: сбросить сессию, чтобы пользователь не остался в системе
                         await supabase.auth.signOut();
                     } catch (error) {
-                        console.error('Ошибка при сбросе пароля:', error);
-                        showMessage(error.message || 'Произошла ошибка при сбросе пароля.', true);
+                        showMessage(error.message, true);
                         resetButton.disabled = false;
                         resetButton.textContent = 'Сохранить пароль';
                     }
@@ -120,13 +118,25 @@
                 return;
             }
 
-            // Если тип не определён или неизвестен, показываем общее сообщение об ошибке
+            // Обработка подтверждения email
+            if (effectiveType === 'signup' || effectiveType === 'email_change' || (!effectiveType && params.token_hash)) {
+                if (params.token_hash) {
+                    try {
+                        const { error } = await supabase.auth.verifyOtp({
+                            token_hash: params.token_hash,
+                            type: 'signup'
+                        });
+                        if (error) throw error;
+                    } catch (error) {
+                        console.warn('Ошибка верификации:', error);
+                    }
+                }
+                confirmContainer.style.display = 'block';
+                return;
+            }
+
+            // Если ничего не подошло — показываем подтверждение как запасной вариант
             confirmContainer.style.display = 'block';
-            const h2 = confirmContainer.querySelector('h2');
-            if (h2) h2.textContent = 'Неизвестная ссылка';
-            const p = confirmContainer.querySelector('p');
-            if (p) p.innerHTML = 'Возможно, ссылка устарела или неверна. Пожалуйста, запросите новое письмо.';
-            document.querySelector('#confirm-container button').remove();
         });
 
         function showMessage(message, isError) {

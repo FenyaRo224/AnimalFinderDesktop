@@ -2,104 +2,8 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AnimalFinder — Сброс пароля</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
-    </script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-            background: #f5f5f5;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        .card {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            padding: 32px;
-            max-width: 450px;
-            width: 100%;
-            text-align: center;
-        }
-        .success-icon { font-size: 64px; margin-bottom: 16px; }
-        .reset-icon { font-size: 64px; margin-bottom: 16px; }
-        h2 { color: #333; margin-bottom: 12px; font-size: 24px; }
-        p { color: #666; margin-bottom: 24px; line-height: 1.5; }
-        .input-group { text-align: left; margin-bottom: 20px; }
-        label { display: block; font-weight: 500; margin-bottom: 8px; color: #333; }
-        input {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 16px;
-            transition: border-color 0.2s;
-        }
-        input:focus { outline: none; border-color: #007bff; }
-        button {
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            width: 100%;
-            transition: background 0.2s;
-        }
-        button:hover { background: #0056b3; }
-        button:disabled { background: #ccc; cursor: not-allowed; }
-        .message { margin-top: 16px; padding: 10px; border-radius: 8px; font-size: 14px; display: none; }
-        .message.success { background: #d4edda; color: #155724; display: block; }
-        .message.error { background: #f8d7da; color: #721c24; display: block; }
-        .close-btn {
-            background: #6c757d;
-            margin-top: 16px;
-        }
-        .close-btn:hover { background: #5a6268; }
-    </style>
-</head>
-<body>
-    <div class="card" id="app">
-        <!-- Блок подтверждения email (показывается только для signup) -->
-        <div id="confirm-container" style="display: none;">
-            <div class="success-icon">✅</div>
-            <h2>Email подтверждён!</h2>
-            <p>Ваш адрес электронной почты успешно подтверждён. Теперь вы можете закрыть это окно и войти в приложение.</p>
-            <button class="close-btn" onclick="window.close()">Закрыть окно</button>
-        </div>
-
-        <!-- Блок сброса пароля (показывается только для recovery) -->
-        <div id="reset-container" style="display: none;">
-            <div class="reset-icon">🔑</div>
-            <h2>Сброс пароля</h2>
-            <p>Введите и подтвердите ваш новый пароль.</p>
-            <div class="input-group">
-                <label for="new-password">Новый пароль</label>
-                <input type="password" id="new-password" placeholder="Минимум 6 символов">
-            </div>
-            <div class="input-group">
-                <label for="confirm-password">Подтвердите пароль</label>
-                <input type="password" id="confirm-password" placeholder="Повторите пароль">
-            </div>
-            <button id="reset-btn">Сохранить пароль</button>
-            <div id="message" class="message"></div>
-        </div>
-    </div>
-
-    <!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>AnimalFinder — Восстановление пароля</title>
-    <!-- Подключаем Supabase JS один раз -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * {
@@ -107,107 +11,148 @@
             padding: 0;
             box-sizing: border-box;
         }
+        
+        html, body {
+            height: 100%;
+            width: 100%;
+        }
+        
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-            background: #f0f2f5;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 20px;
+            margin: 0;
         }
+        
         .card {
             background: white;
-            border-radius: 16px;
-            box-shadow: 0 8px 28px rgba(0,0,0,0.12);
-            padding: 32px;
-            max-width: 440px;
+            border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+            padding: 40px 32px;
+            max-width: 420px;
             width: 100%;
             text-align: center;
+            margin: 0 auto;
         }
+        
         .icon {
             font-size: 64px;
             margin-bottom: 16px;
         }
+        
         h2 {
-            font-size: 24px;
-            font-weight: 600;
-            color: #1f2a3a;
+            font-size: 26px;
+            font-weight: 700;
+            color: #1a202c;
             margin-bottom: 12px;
         }
+        
         p {
-            font-size: 15px;
-            color: #5a6874;
-            margin-bottom: 24px;
-            line-height: 1.4;
+            font-size: 14px;
+            color: #718096;
+            margin-bottom: 28px;
+            line-height: 1.5;
         }
+        
         .input-group {
             text-align: left;
             margin-bottom: 20px;
         }
+        
         label {
             display: block;
-            font-weight: 500;
-            font-size: 14px;
-            margin-bottom: 6px;
-            color: #1f2a3a;
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 8px;
+            color: #4a5568;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
+        
         input {
             width: 100%;
-            padding: 12px;
-            border: 1px solid #ccd4db;
-            border-radius: 10px;
+            padding: 14px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
             font-size: 16px;
-            transition: 0.2s;
+            transition: all 0.2s;
             background: #fff;
+            font-family: inherit;
         }
+        
         input:focus {
             outline: none;
-            border-color: #007bff;
-            box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
+        
+        input::placeholder {
+            color: #a0aec0;
+            font-size: 14px;
+        }
+        
         button {
-            background: #007bff;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            padding: 12px 20px;
-            border-radius: 10px;
+            padding: 14px 24px;
+            border-radius: 12px;
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
             width: 100%;
-            transition: background 0.2s;
+            transition: transform 0.1s, box-shadow 0.2s;
+            margin-top: 8px;
         }
+        
         button:hover {
-            background: #0056b3;
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
         }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
         button:disabled {
-            background: #b0c4de;
+            background: #cbd5e0;
+            transform: none;
+            box-shadow: none;
             cursor: not-allowed;
         }
+        
         .message {
             margin-top: 20px;
-            padding: 12px;
-            border-radius: 10px;
+            padding: 12px 16px;
+            border-radius: 12px;
             font-size: 14px;
             display: none;
+            font-weight: 500;
         }
+        
         .message.success {
-            background: #e3f7e8;
-            color: #0e6630;
+            background: #c6f6d5;
+            color: #22543d;
             display: block;
         }
+        
         .message.error {
-            background: #fee7e7;
-            color: #b91c1c;
+            background: #fed7d7;
+            color: #742a2a;
             display: block;
         }
+        
         .btn-secondary {
-            background: #6c757d;
-            margin-top: 12px;
+            background: #718096;
         }
+        
         .btn-secondary:hover {
-            background: #545b62;
+            background: #4a5568;
+            box-shadow: 0 10px 20px rgba(113, 128, 150, 0.3);
         }
     </style>
 </head>
@@ -225,7 +170,7 @@
         <div id="resetContainer" style="display: none;">
             <div class="icon">🔑</div>
             <h2>Сброс пароля</h2>
-            <p>Введите новый пароль для вашей учётной записи.</p>
+            <p>Введите новый пароль для вашей учётной записи</p>
             <div class="input-group">
                 <label for="newPassword">Новый пароль</label>
                 <input type="password" id="newPassword" placeholder="Минимум 6 символов">
@@ -241,14 +186,11 @@
 
     <script>
         (function() {
-            // Конфигурация Supabase
             const SUPABASE_URL = 'https://htusuxsjxxsudzxwjnvt.supabase.co';
             const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh0dXN1eHNqeHhzdWR6eHdqbnZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYxNjc5MjcsImV4cCI6MjA4MTc0MzkyN30.pBVCYJIGIYq71vQmBjxCrAYEOS8oqrphd16xCtTdABA';
             
-            // Инициализация клиента Supabase (глобальный объект уже есть, используем его)
             const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-            // Получение параметров из URL
             function getUrlParams() {
                 const params = new URLSearchParams(window.location.search);
                 return {
@@ -257,12 +199,10 @@
                 };
             }
 
-            // DOM элементы
             const confirmContainer = document.getElementById('confirmContainer');
             const resetContainer = document.getElementById('resetContainer');
             const params = getUrlParams();
 
-            // Обработка сброса пароля (type=recovery)
             if (params.type === 'recovery' && params.token_hash) {
                 resetContainer.style.display = 'block';
 
@@ -275,12 +215,10 @@
                     const newPassword = newPasswordInput.value;
                     const confirmPassword = confirmPasswordInput.value;
 
-                    // Сброс сообщения
                     resetMessage.className = 'message';
                     resetMessage.style.display = 'none';
                     resetMessage.textContent = '';
 
-                    // Валидация
                     if (newPassword !== confirmPassword) {
                         resetMessage.textContent = '❌ Пароли не совпадают';
                         resetMessage.className = 'message error';
@@ -298,27 +236,22 @@
                     resetButton.textContent = 'Сохранение...';
 
                     try {
-                        // Верифицируем OTP токен
                         const { error: verifyError } = await supabase.auth.verifyOtp({
                             token_hash: params.token_hash,
                             type: 'recovery'
                         });
                         if (verifyError) throw verifyError;
 
-                        // Обновляем пароль
                         const { error: updateError } = await supabase.auth.updateUser({
                             password: newPassword
                         });
                         if (updateError) throw updateError;
 
-                        // Успех
                         resetMessage.textContent = '✅ Пароль успешно изменён! Теперь вы можете закрыть это окно.';
                         resetMessage.className = 'message success';
                         resetMessage.style.display = 'block';
                         resetButton.disabled = true;
                         resetButton.textContent = 'Готово';
-
-                        // Выход из системы (чтобы пользователь вошёл с новым паролем)
                         await supabase.auth.signOut();
                     } catch (err) {
                         console.error('Ошибка сброса пароля:', err);
@@ -330,7 +263,6 @@
                     }
                 });
             } 
-            // Обработка подтверждения email (type=signup)
             else if (params.type === 'signup' && params.token_hash) {
                 (async () => {
                     try {
@@ -346,7 +278,6 @@
                 })();
             }
             else {
-                // Неизвестный тип или отсутствует token_hash
                 confirmContainer.style.display = 'block';
                 const title = confirmContainer.querySelector('h2');
                 const desc = confirmContainer.querySelector('p');
@@ -357,7 +288,5 @@
             }
         })();
     </script>
-</body>
-</html>
 </body>
 </html>

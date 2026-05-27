@@ -13,6 +13,7 @@ namespace AnimalFinderDesktop.Forms
         private Button btnLogin, btnRegister, btnCancel;
         private Label lblStatus;
         private CheckBox chkShowPassword;
+        private LinkLabel llForgotPassword;
 
         public LoginForm()
         {
@@ -31,6 +32,7 @@ namespace AnimalFinderDesktop.Forms
             int left = 50;
             int width = 300;
 
+            // Заголовок
             var lblTitle = new Label
             {
                 Text = "🐾 AnimalFinder",
@@ -43,22 +45,37 @@ namespace AnimalFinderDesktop.Forms
             this.Controls.Add(lblTitle);
             y += 60;
 
+            // Email
             var lblEmail = new Label { Text = "Email:", Location = new Point(left, y), Size = new Size(80, 25) };
             tbEmail = new TextBox { Location = new Point(left + 80, y), Size = new Size(220, 25) };
             this.Controls.Add(lblEmail);
             this.Controls.Add(tbEmail);
             y += 40;
 
+            // Пароль
             var lblPassword = new Label { Text = "Пароль:", Location = new Point(left, y), Size = new Size(80, 25) };
             tbPassword = new TextBox { Location = new Point(left + 80, y), Size = new Size(220, 25), PasswordChar = '*' };
             this.Controls.Add(lblPassword);
             this.Controls.Add(tbPassword);
+            y += 35;
+
+            // Строка: Забыли пароль? слева, Показать пароль справа
+            llForgotPassword = new LinkLabel
+            {
+                Text = "Забыли пароль?",
+                LinkColor = Color.FromArgb(0, 122, 204),
+                Location = new Point(left + 80, y),
+                Size = new Size(100, 20),
+                Font = new Font("Segoe UI", 9)
+            };
+            llForgotPassword.Click += LlForgotPassword_Click;
+            this.Controls.Add(llForgotPassword);
 
             chkShowPassword = new CheckBox
             {
                 Text = "Показать пароль",
-                Location = new Point(left + 310, y),
-                Size = new Size(120, 25),
+                Location = new Point(left + 200, y),
+                Size = new Size(120, 20),
                 Checked = false
             };
             chkShowPassword.CheckedChanged += (s, e) =>
@@ -66,8 +83,9 @@ namespace AnimalFinderDesktop.Forms
                 tbPassword.PasswordChar = chkShowPassword.Checked ? '\0' : '*';
             };
             this.Controls.Add(chkShowPassword);
-            y += 50;
+            y += 35;
 
+            // Кнопки Войти / Регистрация
             btnLogin = new Button
             {
                 Text = "Войти",
@@ -93,6 +111,7 @@ namespace AnimalFinderDesktop.Forms
             this.Controls.Add(btnRegister);
             y += 50;
 
+            // Статус
             lblStatus = new Label
             {
                 Text = "",
@@ -103,6 +122,7 @@ namespace AnimalFinderDesktop.Forms
             };
             this.Controls.Add(lblStatus);
 
+            // Кнопка Отмена
             btnCancel = new Button
             {
                 Text = "Отмена",
@@ -162,8 +182,15 @@ namespace AnimalFinderDesktop.Forms
                 lblStatus.ForeColor = Color.Green;
             }
         }
+
+        private void LlForgotPassword_Click(object sender, EventArgs e)
+        {
+            using var resetForm = new ChangePasswordForm(); // неавторизованный режим
+            resetForm.ShowDialog();
+        }
     }
 
+    // ========== КЛАСС REGISTERFORM ==========
     public class RegisterForm : Form
     {
         private TextBox tbEmail, tbPassword, tbConfirmPassword, tbDisplayName, tbPhone;
@@ -327,11 +354,9 @@ namespace AnimalFinderDesktop.Forms
 
                 if (response?.User != null)
                 {
-                    // ВАЖНО: создаём профиль
                     bool profileCreated = await SupabaseService.InsertProfile(response.User.Id, tbDisplayName.Text.Trim(), tbPhone.Text.Trim());
                     if (!profileCreated)
                     {
-                        // Если профиль не создался, покажем предупреждение, но регистрация всё равно успешна
                         MessageBox.Show("Пользователь создан, но не удалось сохранить дополнительные данные. Обратитесь к администратору.", "Предупреждение", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     }
 

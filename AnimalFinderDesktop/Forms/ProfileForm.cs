@@ -159,7 +159,11 @@ namespace AnimalFinderDesktop.Forms
                 y += 50;
 
                 btnChangePassword = new Button { Text = "Сменить пароль", Location = new Point(left, y), Size = new Size(130, 35), BackColor = Color.FromArgb(0, 122, 204), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-                btnChangePassword.Click += (s, e) => new ChangePasswordForm().ShowDialog();
+                btnChangePassword.Click += async (s, e) =>
+                {
+                    using var resetForm = new ChangePasswordForm("authenticated"); // неважно что, главное не null
+                    resetForm.ShowDialog();
+                };
                 this.Controls.Add(btnChangePassword);
 
                 btnRequestModerator = new Button { Text = "Запросить роль модератора", Location = new Point(left + 140, y), Size = new Size(190, 35), BackColor = Color.FromArgb(255, 193, 7), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };

@@ -32,192 +32,209 @@ namespace AnimalFinderDesktop.Forms
         {
             InitializeComponent();
             this.StartPosition = FormStartPosition.CenterParent;
-            this.Size = new Size(850, 1020);
-            this.MinimumSize = new Size(850, 900);
+            this.Size = new Size(900, 800);
+            this.MinimumSize = new Size(850, 700);
+            this.Text = "Создание объявления";
+            this.BackColor = Color.White;
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
         }
 
         private void InitializeComponent()
         {
-            this.Text = "Создание объявления";
-            this.FormBorderStyle = FormBorderStyle.FixedDialog;
-            this.MaximizeBox = false;
-            this.BackColor = Color.White;
+            // Основная панель с отступами
+            var mainPanel = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(20),
+                AutoScroll = true,
+                ColumnCount = 1,
+                RowCount = 5
+            };
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));  // заголовок
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));     // основная информация
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));     // детали животного
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));     // контакты и фото
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 80)); // кнопки
 
-            int y = 20;
-            int left = 20;
-            int labelWidth = 160;
-            int fieldWidth = 580;
+            // Заголовок
+            var lblTitle = new Label
+            {
+                Text = "🐾 Новое объявление",
+                Font = new Font("Segoe UI", 18, FontStyle.Bold),
+                ForeColor = Color.FromArgb(0, 122, 204),
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            mainPanel.Controls.Add(lblTitle, 0, 0);
 
-            // Тип
-            var lblType = new Label { Text = "Тип объявления:", Location = new Point(left, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
-            cbType = new ComboBox { Location = new Point(left + labelWidth + 10, y), Size = new Size(fieldWidth, 25), DropDownStyle = ComboBoxStyle.DropDownList };
+            // ---- Блок 1: Основная информация (тип, дата, кличка) ----
+            var groupBasic = new GroupBox { Text = "Основная информация", Font = new Font("Segoe UI", 10, FontStyle.Bold), Dock = DockStyle.Top, Height = 150, Padding = new Padding(10) };
+            var basicLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 2, Padding = new Padding(5) };
+            basicLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
+            basicLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
+            basicLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
+            basicLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
+
+            // Тип объявления
+            basicLayout.Controls.Add(new Label { Text = "Тип объявления:", TextAlign = ContentAlignment.MiddleRight }, 0, 0);
+            cbType = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cbType.Items.AddRange(new[] { "Пропал(а)", "Найден(а)" });
             cbType.SelectedIndex = 0;
             cbType.SelectedIndexChanged += (s, e) => UpdatePetNameRequirement();
-            this.Controls.Add(lblType);
-            this.Controls.Add(cbType);
-            y += 40;
-
-            // Кличка
-            var lblPetName = new Label { Text = "Кличка:", Location = new Point(left, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
-            txtPetName = new TextBox { Location = new Point(left + labelWidth + 10, y), Size = new Size(fieldWidth, 25) };
-            this.Controls.Add(lblPetName);
-            this.Controls.Add(txtPetName);
-            y += 40;
+            basicLayout.Controls.Add(cbType, 1, 0);
 
             // Дата инцидента
-            var lblIncidentDate = new Label { Text = "Дата пропажи/находки:", Location = new Point(left, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
-            dtpIncidentDate = new DateTimePicker { Location = new Point(left + labelWidth + 10, y), Size = new Size(200, 25), Format = DateTimePickerFormat.Short };
-            dtpIncidentDate.Value = DateTime.Now;
-            this.Controls.Add(lblIncidentDate);
-            this.Controls.Add(dtpIncidentDate);
-            y += 40;
+            basicLayout.Controls.Add(new Label { Text = "Дата пропажи/находки:", TextAlign = ContentAlignment.MiddleRight }, 2, 0);
+            dtpIncidentDate = new DateTimePicker { Format = DateTimePickerFormat.Short, Value = DateTime.Now };
+            basicLayout.Controls.Add(dtpIncidentDate, 3, 0);
+
+            // Кличка (со звездочкой для пропавших)
+            basicLayout.Controls.Add(new Label { Text = "Кличка:", TextAlign = ContentAlignment.MiddleRight }, 0, 1);
+            txtPetName = new TextBox();
+            basicLayout.Controls.Add(txtPetName, 1, 1);
+            // Пустая ячейка
+            basicLayout.Controls.Add(new Label(), 2, 1);
+            basicLayout.Controls.Add(new Label(), 3, 1);
+
+            groupBasic.Controls.Add(basicLayout);
+            mainPanel.Controls.Add(groupBasic, 0, 1);
+
+            // ---- Блок 2: Детали животного (два столбца) ----
+            var groupDetails = new GroupBox { Text = "Детали животного", Font = new Font("Segoe UI", 10, FontStyle.Bold), Dock = DockStyle.Top, Height = 320, Padding = new Padding(10) };
+            var detailsLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 8, Padding = new Padding(5) };
+            detailsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            detailsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
 
             // Вид
-            var lblSpecies = new Label { Text = "Вид *:", Location = new Point(left, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
-            cbSpecies = new ComboBox { Location = new Point(left + labelWidth + 10, y), Size = new Size(200, 25), DropDownStyle = ComboBoxStyle.DropDownList };
+            detailsLayout.Controls.Add(new Label { Text = "Вид *:", TextAlign = ContentAlignment.MiddleRight }, 0, 0);
+            cbSpecies = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cbSpecies.Items.AddRange(new[] { "Собака", "Кошка", "Грызун", "Птица", "Другое" });
             cbSpecies.SelectedIndex = 0;
             cbSpecies.SelectedIndexChanged += (s, e) => UpdateBreedList();
-            txtOtherSpecies = new TextBox { Location = new Point(left + labelWidth + 230, y), Size = new Size(350, 25), Visible = false, PlaceholderText = "Укажите вид" };
-            this.Controls.Add(lblSpecies);
-            this.Controls.Add(cbSpecies);
-            this.Controls.Add(txtOtherSpecies);
-            y += 40;
+            detailsLayout.Controls.Add(cbSpecies, 1, 0);
 
             // Порода
-            var lblBreed = new Label { Text = "Порода:", Location = new Point(left, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
-            cbBreed = new ComboBox { Location = new Point(left + labelWidth + 10, y), Size = new Size(200, 25), DropDownStyle = ComboBoxStyle.DropDownList };
+            detailsLayout.Controls.Add(new Label { Text = "Порода:", TextAlign = ContentAlignment.MiddleRight }, 0, 1);
+            var breedPanel = new Panel { Height = 30 };
+            cbBreed = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150 };
             cbBreed.Items.Add("Другая");
             cbBreed.SelectedIndex = 0;
-            txtOtherBreed = new TextBox { Location = new Point(left + labelWidth + 230, y), Size = new Size(350, 25), Visible = false, PlaceholderText = "Укажите породу" };
-            this.Controls.Add(lblBreed);
-            this.Controls.Add(cbBreed);
-            this.Controls.Add(txtOtherBreed);
-            y += 40;
-
-            // Возраст
-            var lblAge = new Label { Text = "Возраст:", Location = new Point(left, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
-            nudAgeYears = new NumericUpDown { Location = new Point(left + labelWidth + 10, y), Size = new Size(80, 25), Minimum = 0, Maximum = 30, Value = 0 };
-            var lblYears = new Label { Text = "лет", Location = new Point(left + labelWidth + 100, y), Size = new Size(30, 25), TextAlign = ContentAlignment.MiddleLeft };
-            nudAgeMonths = new NumericUpDown { Location = new Point(left + labelWidth + 140, y), Size = new Size(80, 25), Minimum = 0, Maximum = 11, Value = 0 };
-            var lblMonths = new Label { Text = "мес", Location = new Point(left + labelWidth + 230, y), Size = new Size(40, 25), TextAlign = ContentAlignment.MiddleLeft };
-            this.Controls.Add(lblAge);
-            this.Controls.Add(nudAgeYears);
-            this.Controls.Add(lblYears);
-            this.Controls.Add(nudAgeMonths);
-            this.Controls.Add(lblMonths);
-            y += 40;
-
-            // Пол
-            var lblGender = new Label { Text = "Пол:", Location = new Point(left, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
-            cbGender = new ComboBox { Location = new Point(left + labelWidth + 10, y), Size = new Size(fieldWidth, 25), DropDownStyle = ComboBoxStyle.DropDownList };
-            cbGender.Items.AddRange(new[] { "Мальчик", "Девочка", "Не определён" });
-            cbGender.SelectedIndex = 0;
-            this.Controls.Add(lblGender);
-            this.Controls.Add(cbGender);
-            y += 40;
-
-            // Размер
-            var lblSize = new Label { Text = "Размер:", Location = new Point(left, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
-            cbSize = new ComboBox { Location = new Point(left + labelWidth + 10, y), Size = new Size(fieldWidth, 25), DropDownStyle = ComboBoxStyle.DropDownList };
-            cbSize.Items.AddRange(new[] { "Маленький", "Средний", "Большой" });
-            cbSize.SelectedIndex = 0;
-            this.Controls.Add(lblSize);
-            this.Controls.Add(cbSize);
-            y += 40;
+            txtOtherBreed = new TextBox { Width = 150, Visible = false, PlaceholderText = "Укажите породу" };
+            breedPanel.Controls.Add(cbBreed);
+            breedPanel.Controls.Add(txtOtherBreed);
+            detailsLayout.Controls.Add(breedPanel, 1, 1);
 
             // Окрас
-            var lblColor = new Label { Text = "Окрас:", Location = new Point(left, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
-            cbColor = new ComboBox { Location = new Point(left + labelWidth + 10, y), Size = new Size(200, 25), DropDownStyle = ComboBoxStyle.DropDownList };
+            detailsLayout.Controls.Add(new Label { Text = "Окрас:", TextAlign = ContentAlignment.MiddleRight }, 0, 2);
+            var colorPanel = new Panel { Height = 30 };
+            cbColor = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150 };
             cbColor.Items.AddRange(new[] { "Белый", "Чёрный", "Рыжий", "Серый", "Коричневый", "Пятнистый", "Трёхцветный", "Другое" });
             cbColor.SelectedIndex = 0;
-            txtOtherColor = new TextBox { Location = new Point(left + labelWidth + 230, y), Size = new Size(350, 25), Visible = false, PlaceholderText = "Укажите окрас" };
-            cbColor.SelectedIndexChanged += (s, e) => { txtOtherColor.Visible = cbColor.SelectedItem?.ToString() == "Другое"; };
-            this.Controls.Add(lblColor);
-            this.Controls.Add(cbColor);
-            this.Controls.Add(txtOtherColor);
-            y += 40;
+            txtOtherColor = new TextBox { Width = 150, Visible = false, PlaceholderText = "Укажите окрас" };
+            cbColor.SelectedIndexChanged += (s, e) => txtOtherColor.Visible = cbColor.SelectedItem?.ToString() == "Другое";
+            colorPanel.Controls.Add(cbColor);
+            colorPanel.Controls.Add(txtOtherColor);
+            detailsLayout.Controls.Add(colorPanel, 1, 2);
+
+            // Возраст
+            detailsLayout.Controls.Add(new Label { Text = "Возраст:", TextAlign = ContentAlignment.MiddleRight }, 0, 3);
+            var agePanel = new FlowLayoutPanel { Height = 30 };
+            nudAgeYears = new NumericUpDown { Minimum = 0, Maximum = 30, Width = 60 };
+            nudAgeMonths = new NumericUpDown { Minimum = 0, Maximum = 11, Width = 60 };
+            agePanel.Controls.Add(nudAgeYears);
+            agePanel.Controls.Add(new Label { Text = "лет" });
+            agePanel.Controls.Add(nudAgeMonths);
+            agePanel.Controls.Add(new Label { Text = "мес" });
+            detailsLayout.Controls.Add(agePanel, 1, 3);
+
+            // Пол
+            detailsLayout.Controls.Add(new Label { Text = "Пол:", TextAlign = ContentAlignment.MiddleRight }, 0, 4);
+            cbGender = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+            cbGender.Items.AddRange(new[] { "Мальчик", "Девочка", "Не определён" });
+            cbGender.SelectedIndex = 0;
+            detailsLayout.Controls.Add(cbGender, 1, 4);
+
+            // Размер
+            detailsLayout.Controls.Add(new Label { Text = "Размер:", TextAlign = ContentAlignment.MiddleRight }, 0, 5);
+            cbSize = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+            cbSize.Items.AddRange(new[] { "Маленький", "Средний", "Большой" });
+            cbSize.SelectedIndex = 0;
+            detailsLayout.Controls.Add(cbSize, 1, 5);
 
             // Характер
-            var lblTemperament = new Label { Text = "Характер:", Location = new Point(left, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
-            cbTemperament = new ComboBox { Location = new Point(left + labelWidth + 10, y), Size = new Size(fieldWidth, 25), DropDownStyle = ComboBoxStyle.DropDownList };
+            detailsLayout.Controls.Add(new Label { Text = "Характер:", TextAlign = ContentAlignment.MiddleRight }, 0, 6);
+            cbTemperament = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cbTemperament.Items.AddRange(new[] { "Спокойный", "Игривый", "Активный", "Ласковый", "Пугливый", "Дружелюбный", "Независимый", "Агрессивный", "Осторожный" });
             cbTemperament.SelectedIndex = 0;
-            this.Controls.Add(lblTemperament);
-            this.Controls.Add(cbTemperament);
-            y += 40;
-
-            // Местоположение
-            var lblLocation = new Label { Text = "Местоположение:", Location = new Point(left, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
-            txtLocation = new TextBox { Location = new Point(left + labelWidth + 10, y), Size = new Size(fieldWidth, 25) };
-            this.Controls.Add(lblLocation);
-            this.Controls.Add(txtLocation);
-            y += 40;
-
-            // Радиус поиска
-            var lblRadius = new Label { Text = "Радиус поиска (км):", Location = new Point(left, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
-            nudSearchRadius = new NumericUpDown { Location = new Point(left + labelWidth + 10, y), Size = new Size(100, 25), Minimum = 1, Maximum = 500, Value = 10 };
-            this.Controls.Add(lblRadius);
-            this.Controls.Add(nudSearchRadius);
-            y += 40;
+            detailsLayout.Controls.Add(cbTemperament, 1, 6);
 
             // Чип/клеймо
-            var lblMicrochip = new Label { Text = "Номер чипа / клейма:", Location = new Point(left, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
-            txtMicrochip = new TextBox { Location = new Point(left + labelWidth + 10, y), Size = new Size(fieldWidth, 25) };
-            this.Controls.Add(lblMicrochip);
-            this.Controls.Add(txtMicrochip);
-            y += 40;
+            detailsLayout.Controls.Add(new Label { Text = "Номер чипа/клейма:", TextAlign = ContentAlignment.MiddleRight }, 0, 7);
+            txtMicrochip = new TextBox();
+            detailsLayout.Controls.Add(txtMicrochip, 1, 7);
 
-            // Особые приметы
-            var lblSpecialMarks = new Label { Text = "Особые приметы:", Location = new Point(left, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
-            txtSpecialMarks = new TextBox { Location = new Point(left + labelWidth + 10, y), Size = new Size(fieldWidth, 25) };
-            this.Controls.Add(lblSpecialMarks);
-            this.Controls.Add(txtSpecialMarks);
-            y += 40;
+            groupDetails.Controls.Add(detailsLayout);
+            mainPanel.Controls.Add(groupDetails, 0, 2);
 
-            // Контакты
-            var lblPhone = new Label { Text = "Телефон для звонка *:", Location = new Point(left, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
-            txtContact = new TextBox { Location = new Point(left + labelWidth + 10, y), Size = new Size(fieldWidth, 25) };
-            this.Controls.Add(lblPhone);
-            this.Controls.Add(txtContact);
+            // ---- Блок 3: Местоположение, контакты, описание, фото ----
+            var groupContact = new GroupBox { Text = "Контакты и описание", Font = new Font("Segoe UI", 10, FontStyle.Bold), Dock = DockStyle.Top, Height = 280, Padding = new Padding(10) };
+            var contactLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 6, Padding = new Padding(5) };
+            contactLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
+            contactLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
-            var lblContactOther = new Label { Text = "Другие способы связи:", Location = new Point(left, y + 35), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
-            txtContactOther = new TextBox { Location = new Point(left + labelWidth + 10, y + 35), Size = new Size(fieldWidth, 25), PlaceholderText = "Telegram, WhatsApp, соцсети..." };
-            this.Controls.Add(lblContactOther);
-            this.Controls.Add(txtContactOther);
-            y += 80;
+            // Местоположение
+            contactLayout.Controls.Add(new Label { Text = "Местоположение:", TextAlign = ContentAlignment.MiddleRight }, 0, 0);
+            txtLocation = new TextBox();
+            contactLayout.Controls.Add(txtLocation, 1, 0);
+
+            // Радиус поиска
+            contactLayout.Controls.Add(new Label { Text = "Радиус поиска (км):", TextAlign = ContentAlignment.MiddleRight }, 0, 1);
+            nudSearchRadius = new NumericUpDown { Minimum = 1, Maximum = 500, Value = 10 };
+            contactLayout.Controls.Add(nudSearchRadius, 1, 1);
+
+            // Телефон
+            contactLayout.Controls.Add(new Label { Text = "Телефон для звонка *:", TextAlign = ContentAlignment.MiddleRight }, 0, 2);
+            txtContact = new TextBox();
+            contactLayout.Controls.Add(txtContact, 1, 2);
+
+            // Другие контакты
+            contactLayout.Controls.Add(new Label { Text = "Другие способы связи:", TextAlign = ContentAlignment.MiddleRight }, 0, 3);
+            txtContactOther = new TextBox { PlaceholderText = "Telegram, WhatsApp, соцсети..." };
+            contactLayout.Controls.Add(txtContactOther, 1, 3);
 
             // Описание
-            var lblDesc = new Label { Text = "Описание:", Location = new Point(left, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.TopRight };
-            txtDescription = new TextBox { Location = new Point(left + labelWidth + 10, y), Size = new Size(fieldWidth, 80), Multiline = true, ScrollBars = ScrollBars.Vertical };
-            this.Controls.Add(lblDesc);
-            this.Controls.Add(txtDescription);
-            y += 100;
+            contactLayout.Controls.Add(new Label { Text = "Описание:", TextAlign = ContentAlignment.TopRight }, 0, 4);
+            txtDescription = new TextBox { Multiline = true, Height = 60 };
+            contactLayout.Controls.Add(txtDescription, 1, 4);
 
             // Фото
-            var lblPhotos = new Label { Text = "Фото:", Location = new Point(left, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.TopRight };
-            btnChoosePhotos = new Button { Text = "Добавить фото", Location = new Point(left + labelWidth + 10, y), Size = new Size(120, 30) };
+            contactLayout.Controls.Add(new Label { Text = "Фото:", TextAlign = ContentAlignment.TopRight }, 0, 5);
+            var photoPanel = new FlowLayoutPanel { Height = 80 };
+            btnChoosePhotos = new Button { Text = "Добавить фото", Width = 120 };
             btnChoosePhotos.Click += BtnChoosePhotos_Click;
-            flpPhotos = new FlowLayoutPanel { Location = new Point(left + labelWidth + 10, y + 35), Size = new Size(fieldWidth, 100), AutoScroll = true, BorderStyle = BorderStyle.FixedSingle };
-            this.Controls.Add(lblPhotos);
-            this.Controls.Add(btnChoosePhotos);
-            this.Controls.Add(flpPhotos);
-            y += 155;
+            flpPhotos = new FlowLayoutPanel { Width = 400, Height = 80, AutoScroll = true, BorderStyle = BorderStyle.FixedSingle };
+            photoPanel.Controls.Add(btnChoosePhotos);
+            photoPanel.Controls.Add(flpPhotos);
+            contactLayout.Controls.Add(photoPanel, 1, 5);
 
-            // Кнопки в один ряд
-            btnFillFromProfile = new Button { Text = "Заполнить из профиля", Location = new Point(left + 100, y), Size = new Size(160, 40), BackColor = Color.FromArgb(0, 122, 204), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-            btnFillFromProfile.Click += BtnFillFromProfile_Click;
-            this.Controls.Add(btnFillFromProfile);
+            groupContact.Controls.Add(contactLayout);
+            mainPanel.Controls.Add(groupContact, 0, 3);
 
-            btnSave = new Button { Text = "Опубликовать", Location = new Point(left + 280, y), Size = new Size(150, 40), BackColor = Color.FromArgb(40, 167, 69), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            // ---- Блок 4: Кнопки ----
+            var buttonPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(10) };
+            btnSave = new Button { Text = "Опубликовать", Width = 150, Height = 40, BackColor = Color.FromArgb(40, 167, 69), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
             btnSave.Click += BtnSave_Click;
-            this.Controls.Add(btnSave);
-
-            btnCancel = new Button { Text = "Отмена", Location = new Point(left + 450, y), Size = new Size(120, 40), BackColor = Color.LightGray };
+            btnCancel = new Button { Text = "Отмена", Width = 120, Height = 40, BackColor = Color.LightGray };
             btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
-            this.Controls.Add(btnCancel);
+            btnFillFromProfile = new Button { Text = "Заполнить из профиля", Width = 160, Height = 40, BackColor = Color.FromArgb(0, 122, 204), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            btnFillFromProfile.Click += BtnFillFromProfile_Click;
+            buttonPanel.Controls.Add(btnSave);
+            buttonPanel.Controls.Add(btnCancel);
+            buttonPanel.Controls.Add(btnFillFromProfile);
+            mainPanel.Controls.Add(buttonPanel, 0, 4);
 
+            this.Controls.Add(mainPanel);
             UpdatePetNameRequirement();
             UpdateBreedList();
         }
@@ -350,7 +367,15 @@ namespace AnimalFinderDesktop.Forms
                     totalMonths = ageYears * 12 + ageMonths;
 
                 string gender = cbGender.SelectedIndex == 0 ? "male" : (cbGender.SelectedIndex == 1 ? "female" : "unknown");
-                string size = cbSize.SelectedItem?.ToString();
+
+                string size = cbSize.SelectedItem?.ToString() switch
+                {
+                    "Маленький" => "small",
+                    "Средний" => "medium",
+                    "Большой" => "large",
+                    _ => "medium"
+                };
+
                 int searchRadius = (int)nudSearchRadius.Value;
                 DateTime incidentDate = dtpIncidentDate.Value.ToUniversalTime();
 
@@ -393,35 +418,33 @@ namespace AnimalFinderDesktop.Forms
                 var inserted = JsonConvert.DeserializeObject<List<dynamic>>(responseBody);
                 string insertedId = inserted?[0]?.id;
 
+                // ========== ЛОКАЛЬНОЕ СОХРАНЕНИЕ ФОТО ==========
                 if (_photoPaths.Any() && !string.IsNullOrEmpty(insertedId))
                 {
-                    var photoUrls = new List<string>();
+                    // Создаём папку Photos если её нет
+                    string photosDir = Path.Combine(Application.StartupPath, "Photos");
+                    if (!Directory.Exists(photosDir))
+                        Directory.CreateDirectory(photosDir);
+
+                    var localPhotoPaths = new List<string>();
                     foreach (var photoPath in _photoPaths)
                     {
-                        var fileName = $"{Guid.NewGuid()}.jpg";
-                        var fileBytes = File.ReadAllBytes(photoPath);
-                        var byteContent = new ByteArrayContent(fileBytes);
-                        byteContent.Headers.Add("Content-Type", "image/jpeg");
-                        var storageClient = new HttpClient();
-                        storageClient.DefaultRequestHeaders.Add("apikey", SupabaseService.SupabaseKey);
-                        storageClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {SupabaseService.SupabaseKey}");
-                        var storageUrl = $"https://htusuxsjxxsudzxwjnvt.supabase.co/storage/v1/object/photos/{fileName}";
-                        var storageResponse = await storageClient.PostAsync(storageUrl, byteContent);
-                        if (storageResponse.IsSuccessStatusCode)
-                        {
-                            var photoUrl = $"https://htusuxsjxxsudzxwjnvt.supabase.co/storage/v1/object/public/photos/{fileName}";
-                            photoUrls.Add(photoUrl);
-                        }
+                        string ext = Path.GetExtension(photoPath);
+                        string newFileName = $"{insertedId}_{Guid.NewGuid()}{ext}";
+                        string destPath = Path.Combine(photosDir, newFileName);
+                        File.Copy(photoPath, destPath, true);
+                        localPhotoPaths.Add($"Photos/{newFileName}");
                     }
-                    if (photoUrls.Any())
-                    {
-                        var updateData = new { photo_url = string.Join(";", photoUrls) };
-                        var updateJson = JsonConvert.SerializeObject(updateData);
-                        var updateContent = new StringContent(updateJson, Encoding.UTF8, "application/json");
-                        var updateUrl = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/pet_listings?id=eq.{insertedId}";
-                        await httpClient.PatchAsync(updateUrl, updateContent);
-                    }
+
+                    // Сохраняем пути в БД (в поле photo_urls)
+                    string combinedPaths = string.Join(";", localPhotoPaths);
+                    var updateData = new { photo_urls = combinedPaths };
+                    var updateJson = JsonConvert.SerializeObject(updateData);
+                    var updateContent = new StringContent(updateJson, Encoding.UTF8, "application/json");
+                    var updateUrl = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/pet_listings?id=eq.{insertedId}";
+                    await httpClient.PatchAsync(updateUrl, updateContent);
                 }
+                // =============================================
 
                 MessageBox.Show("Объявление отправлено на модерацию.", "Готово", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 DialogResult = DialogResult.OK;

@@ -1,8 +1,9 @@
 using System;
+using System.IO;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using AnimalFinderDesktop.Forms;
 using AnimalFinderDesktop.Services;
-using System.Threading.Tasks;
 
 namespace AnimalFinderDesktop
 {
@@ -11,6 +12,13 @@ namespace AnimalFinderDesktop
         [STAThread]
         static void Main()
         {
+            // —Œ«ƒ¿®Ã œ¿œ ” ƒÀﬂ ‘Œ“Œ œ–» «¿œ”— ≈ œ–Œ√–¿ÃÃ€
+            string photosDir = Path.Combine(Application.StartupPath, "Photos");
+            if (!Directory.Exists(photosDir))
+            {
+                Directory.CreateDirectory(photosDir);
+            }
+
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Newtonsoft.Json;
 using AnimalFinderDesktop.Services;
+using System.IO;
 
 namespace AnimalFinderDesktop.Forms
 {
@@ -221,7 +222,7 @@ namespace AnimalFinderDesktop.Forms
             mainLayout.ColumnStyles.Clear();
 
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
-            mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 320));
+            mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 350));
             mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 90));
 
@@ -269,17 +270,181 @@ namespace AnimalFinderDesktop.Forms
             row1Layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40F));
             row1Layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60F));
 
-            var photoUrl = GetString("photo_url");
+            // ========== БЛОК ФОТО С КАРУСЕЛЬЮ ==========
+            var photoUrlsRaw = GetString("photo_urls");
+            List<string> photoPaths = new List<string>();
+
+            if (!string.IsNullOrEmpty(photoUrlsRaw))
+            {
+                var urls = photoUrlsRaw.Split(';');
+                foreach (var url in urls)
+                {
+                    string localPath = Path.Combine(Application.StartupPath, url);
+                    if (File.Exists(localPath))
+                        photoPaths.Add(localPath);
+                }
+            }
+
+            // Если фото нет — показываем заглушку
+            if (photoPaths.Count == 0)
+                photoPaths.Add(null);
+
+            int currentPhotoIndex = 0;
+
+            // Контейнер для фото и кнопок
+            var photoContainer = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(245, 245, 245)
+            };
+
+            // PictureBox для фото
             var photoBox = new PictureBox
             {
                 Dock = DockStyle.Fill,
                 SizeMode = PictureBoxSizeMode.Zoom,
-                ImageLocation = string.IsNullOrEmpty(photoUrl) ? null : photoUrl,
                 BackColor = Color.FromArgb(245, 245, 245),
                 BorderStyle = BorderStyle.FixedSingle
             };
-            row1Layout.Controls.Add(photoBox, 0, 0);
 
+            // Кнопки и индикатор (объявляем заранее)
+            Button btnPrev = null;
+            Button btnNext = null;
+            Label lblPhotoCounter = null;
+
+            // Функция обновления фото
+            void UpdatePhoto()
+            {
+                if (photoPaths.Count > 0 && photoPaths[currentPhotoIndex] != null)
+                {
+                    try
+                    {
+                        photoBox.Image?.Dispose();
+                        photoBox.Image = Image.FromFile(photoPaths[currentPhotoIndex]);
+                    }
+                    catch
+                    {
+                        photoBox.Image = null;
+                    }
+                }
+                else
+                {
+                    photoBox.Image = null;
+                }
+
+                // Обновляем индикатор (если фото > 1)
+                if (photoPaths.Count > 1 && lblPhotoCounter != null)
+                {
+                    lblPhotoCounter.Text = $"{currentPhotoIndex + 1} / {photoPaths.Count}";
+                    lblPhotoCounter.Visible = true;
+                }
+                else if (lblPhotoCounter != null)
+                {
+                    lblPhotoCounter.Visible = false;
+                }
+            }
+
+            if (photoPaths.Count > 1)
+            {
+                // Создаём полупрозрачную панель для кнопок поверх фото
+                var navPanel = new Panel
+                {
+                    Height = 40,
+                    Dock = DockStyle.Bottom,
+                    BackColor = Color.FromArgb(100, 0, 0, 0)
+                };
+
+                btnPrev = new Button
+                {
+                    Text = "◀",
+                    Width = 40,
+                    Height = 30,
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = Color.FromArgb(200, 0, 0, 0),
+                    ForeColor = Color.White,
+                    Font = new Font("Segoe UI", 12, FontStyle.Bold),
+                    Location = new Point(10, 5)
+                };
+                btnPrev.FlatAppearance.BorderSize = 0;
+                btnPrev.Click += (s, e) =>
+                {
+                    if (photoPaths.Count > 0)
+                    {
+                        currentPhotoIndex--;
+                        if (currentPhotoIndex < 0)
+                            currentPhotoIndex = photoPaths.Count - 1;
+                        UpdatePhoto();
+                    }
+                };
+
+                btnNext = new Button
+                {
+                    Text = "▶",
+                    Width = 40,
+                    Height = 30,
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = Color.FromArgb(200, 0, 0, 0),
+                    ForeColor = Color.White,
+                    Font = new Font("Segoe UI", 12, FontStyle.Bold),
+                    Location = new Point(photoContainer.Width - 50, 5)
+                };
+                btnNext.FlatAppearance.BorderSize = 0;
+                btnNext.Click += (s, e) =>
+                {
+                    if (photoPaths.Count > 0)
+                    {
+                        currentPhotoIndex++;
+                        if (currentPhotoIndex >= photoPaths.Count)
+                            currentPhotoIndex = 0;
+                        UpdatePhoto();
+                    }
+                };
+
+                // Индикатор номера фото
+                lblPhotoCounter = new Label
+                {
+                    Text = $"1 / {photoPaths.Count}",
+                    ForeColor = Color.White,
+                    BackColor = Color.FromArgb(150, 0, 0, 0),
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    AutoSize = true,
+                    Location = new Point(photoContainer.Width / 2 - 25, 10),
+                    Padding = new Padding(8, 3, 8, 3)
+                };
+
+                navPanel.Controls.Add(btnPrev);
+                navPanel.Controls.Add(btnNext);
+                navPanel.Controls.Add(lblPhotoCounter);
+
+                // Обновляем расположение кнопок при изменении размера
+                photoContainer.Resize += (s, e) =>
+                {
+                    if (btnNext != null) btnNext.Location = new Point(photoContainer.Width - 50, 5);
+                    if (lblPhotoCounter != null) lblPhotoCounter.Location = new Point(photoContainer.Width / 2 - 25, 10);
+                };
+
+                photoContainer.Controls.Add(navPanel);
+            }
+
+            photoContainer.Controls.Add(photoBox);
+            photoBox.BringToFront();
+
+            // Загружаем первое фото
+            if (photoPaths.Count > 0)
+            {
+                currentPhotoIndex = 0;
+                UpdatePhoto();
+            }
+            else
+            {
+                photoBox.Image = null;
+            }
+
+            row1Layout.Controls.Add(photoContainer, 0, 0);
+            // ========== КОНЕЦ БЛОКА ФОТО ==========
+
+            // ИНФОРМАЦИОННАЯ ПАНЕЛЬ (правая часть)
             var infoPanel = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15, 0, 0, 0), AutoScroll = true };
             int infoY = 0;
 
@@ -388,6 +553,13 @@ namespace AnimalFinderDesktop.Forms
             var gender = GetString("gender");
             string genderText = gender == "male" ? "Мальчик" : (gender == "female" ? "Девочка" : "Не определён");
             var size = GetString("size");
+            string sizeDisplay = size switch
+            {
+                "small" => "Маленький",
+                "medium" => "Средний",
+                "large" => "Большой",
+                _ => size
+            };
             var color = GetString("color");
             var temperament = GetString("temperament");
             var microchip = GetString("microchip");
@@ -398,7 +570,7 @@ namespace AnimalFinderDesktop.Forms
 
             infoY = AddInfoLine(infoPanel, "Возраст", ageText, infoY);
             infoY = AddInfoLine(infoPanel, "Пол", genderText, infoY);
-            if (!string.IsNullOrEmpty(size)) infoY = AddInfoLine(infoPanel, "Размер", size, infoY);
+            if (!string.IsNullOrEmpty(sizeDisplay)) infoY = AddInfoLine(infoPanel, "Размер", sizeDisplay, infoY);
             if (!string.IsNullOrEmpty(color)) infoY = AddInfoLine(infoPanel, "Окрас", color, infoY);
             if (!string.IsNullOrEmpty(temperament)) infoY = AddInfoLine(infoPanel, "Характер", temperament, infoY);
             if (!string.IsNullOrEmpty(microchip)) infoY = AddInfoLine(infoPanel, "Чип/клеймо", microchip, infoY);

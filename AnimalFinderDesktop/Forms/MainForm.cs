@@ -359,12 +359,15 @@ namespace AnimalFinderDesktop.Forms
             else if (cbGenderFilter.SelectedItem?.ToString() == "Девочка")
                 filtered = filtered.Where(x => GetString(x, "gender") == "female");
 
-            if (cbSizeFilter.SelectedItem?.ToString() == "Маленький")
+            // Фильтрация по размеру (русский выбор пользователя -> английское значение в БД)
+            string sizeFilter = cbSizeFilter.SelectedItem?.ToString();
+            if (sizeFilter == "Маленький")
                 filtered = filtered.Where(x => GetString(x, "size") == "small");
-            else if (cbSizeFilter.SelectedItem?.ToString() == "Средний")
+            else if (sizeFilter == "Средний")
                 filtered = filtered.Where(x => GetString(x, "size") == "medium");
-            else if (cbSizeFilter.SelectedItem?.ToString() == "Большой")
+            else if (sizeFilter == "Большой")
                 filtered = filtered.Where(x => GetString(x, "size") == "large");
+            // "Любой" — ничего не делаем
 
             string statusFilter = cbStatusFilter.SelectedItem?.ToString();
             if (statusFilter == "Активные")
@@ -426,15 +429,29 @@ namespace AnimalFinderDesktop.Forms
                     Color.LightGray, 1, ButtonBorderStyle.Solid);
             };
 
-            var photoUrl = GetString(item, "photo_url");
             var photo = new PictureBox
             {
                 Width = 280,
                 Height = 240,
                 SizeMode = PictureBoxSizeMode.Zoom,
-                ImageLocation = string.IsNullOrEmpty(photoUrl) ? null : photoUrl,
                 BackColor = Color.FromArgb(240, 242, 245)
             };
+
+            // Загрузка локального фото
+            string photoUrls = GetString(item, "photo_urls");
+            if (!string.IsNullOrEmpty(photoUrls))
+            {
+                string firstPhoto = photoUrls.Split(';')[0];
+                string localPath = Path.Combine(Application.StartupPath, firstPhoto);
+                if (File.Exists(localPath))
+                {
+                    try
+                    {
+                        photo.Image = Image.FromFile(localPath);
+                    }
+                    catch { /* Если фото не загрузилось — оставляем пустым */ }
+                }
+            }
 
             string status = GetString(item, "status");
             Color statusColor = Color.Gray;
@@ -491,9 +508,16 @@ namespace AnimalFinderDesktop.Forms
                 Size = new Size(256, 35)
             };
 
+            // ПРЕОБРАЗОВАНИЕ ПОЛА (английский -> русский символ)
+            string genderDisplay = GetString(item, "gender") switch
+            {
+                "male" => "♂",
+                "female" => "♀",
+                _ => "⚲"
+            };
             var infoLabel = new Label
             {
-                Text = $"🐾 {GetString(item, "species")}  •  {(GetString(item, "gender") == "male" ? "♂" : "♀")}",
+                Text = $"🐾 {GetString(item, "species")}  •  {genderDisplay}",
                 Font = new Font("Segoe UI", 10),
                 ForeColor = Color.Gray,
                 Location = new Point(12, 295),

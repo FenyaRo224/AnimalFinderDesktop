@@ -1,6 +1,7 @@
 ﻿using Supabase;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
@@ -82,21 +83,18 @@ namespace AnimalFinderDesktop.Services
 
                 var allMessages = new List<dynamic>();
 
-                // Сообщения от userId1 к userId2
                 var url1 = $"{SupabaseUrl}/rest/v1/messages?from_user_id=eq.{userId1}&to_user_id=eq.{userId2}&order=created_at.asc";
                 var response1 = await httpClient.GetStringAsync(url1);
                 var messages1 = JsonConvert.DeserializeObject<List<dynamic>>(response1);
                 if (messages1 != null && messages1.Count > 0)
                     allMessages.AddRange(messages1);
 
-                // Сообщения от userId2 к userId1
                 var url2 = $"{SupabaseUrl}/rest/v1/messages?from_user_id=eq.{userId2}&to_user_id=eq.{userId1}&order=created_at.asc";
                 var response2 = await httpClient.GetStringAsync(url2);
                 var messages2 = JsonConvert.DeserializeObject<List<dynamic>>(response2);
                 if (messages2 != null && messages2.Count > 0)
                     allMessages.AddRange(messages2);
 
-                // Сортировка по дате
                 allMessages = allMessages.OrderBy(m => (DateTime)m.created_at).ToList();
                 return allMessages;
             }
@@ -224,60 +222,84 @@ namespace AnimalFinderDesktop.Services
             return JsonConvert.DeserializeObject<List<dynamic>>(response);
         }
 
-        // ========== СМЕНА EMAIL / ПАРОЛЯ ==========
-        public static async Task<bool> ChangeEmail(string userId, string newEmail, string password)
+        // ========== СМЕНА EMAIL (БЕЗОПАСНО, ЧЕРЕЗ ПОДТВЕРЖДЕНИЕ) ==========
+        public static async Task<bool> RequestEmailChange(string newEmail)
         {
             try
             {
                 var client = await GetClient();
                 var user = client.Auth.CurrentUser;
-                await client.Auth.SignIn(user.Email, password);
 
-                using var httpClient = new HttpClient();
-                var serviceRoleKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh0dXN1eHNqeHhzdWR6eHdqbnZ0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjE2NzkyNywiZXhwIjoyMDgxNzQzOTI3fQ.oERnxKvFqXnVkfK_xWcYQBvzJeqjXn4yUy_iQOpYXJI";
-                httpClient.DefaultRequestHeaders.Add("apikey", serviceRoleKey);
-                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {serviceRoleKey}");
+                if (user == null)
+                {
+                    MessageBox.Show("Пользователь не авторизован", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return false;
+                }
 
-                var updateData = new { email = newEmail };
-                var json = JsonConvert.SerializeObject(updateData);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-                var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/auth/v1/admin/users/{userId}";
-                var response = await httpClient.PutAsync(url, content);
-                return response.IsSuccessStatusCode;
+                var userAttributes = new Supabase.Gotrue.UserAttributes
+                {
+                    Email = newEmail
+                };
+
+                await client.Auth.Update(userAttributes);
+
+                MessageBox.Show($"Письмо с подтверждением отправлено на {newEmail}. Перейдите по ссылке в письме, чтобы завершить смену email.",
+                    "Подтверждение", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return true;
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка: {ex.Message}\n{ex.StackTrace}");
+                MessageBox.Show($"Ошибка: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+        public static async Task<bool> ResetPasswordForEmail(string email)
+        {
+            try
+            {
+                var client = await GetClient();
+                await client.Auth.ResetPasswordForEmail(email);
+
+                MessageBox.Show($"Ссылка для сброса пароля отправлена на {email}. Перейдите по ссылке в письме.",
+                    "Проверьте почту", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
         }
 
-        public static async Task<bool> ChangePassword(string userId, string oldPassword, string newPassword)
+        // ========== СМЕНА ПАРОЛЯ (БЕЗОПАСНО, ЧЕРЕЗ ВОССТАНОВЛЕНИЕ) ==========
+        // Этот метод отправляет ссылку на текущий email пользователя
+        public static async Task<bool> RequestPasswordReset()
         {
             try
             {
                 var client = await GetClient();
                 var user = client.Auth.CurrentUser;
-                await client.Auth.SignIn(user.Email, oldPassword);
 
-                using var httpClient = new HttpClient();
-                var serviceRoleKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh0dXN1eHNqeHhzdWR6eHdqbnZ0Iiwicm9zZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjE2NzkyNywiZXhwIjoyMDgxNzQzOTI3fQ.oERnxKvFqXnVkfK_xWcYQBvzJeqjXn4yUy_iQOpYXJI";
-                httpClient.DefaultRequestHeaders.Add("apikey", serviceRoleKey);
-                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {serviceRoleKey}");
+                if (user == null || string.IsNullOrEmpty(user.Email))
+                {
+                    MessageBox.Show("Пользователь не авторизован", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return false;
+                }
 
-                var updateData = new { password = newPassword };
-                var json = JsonConvert.SerializeObject(updateData);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-                var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/auth/v1/admin/users/{userId}";
-                var response = await httpClient.PutAsync(url, content);
-                return response.IsSuccessStatusCode;
+                await client.Auth.ResetPasswordForEmail(user.Email);
+
+                MessageBox.Show($"Ссылка для сброса пароля отправлена на {user.Email}. Перейдите по ссылке в письме.",
+                    "Проверьте почту", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return true;
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка: {ex.Message}\n{ex.StackTrace}");
+                MessageBox.Show($"Ошибка: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
         }
+
+        // ========== ВСТАВКА ПРОФИЛЯ ==========
         public static async Task<bool> InsertProfile(string userId, string displayName, string phone)
         {
             try
@@ -302,7 +324,6 @@ namespace AnimalFinderDesktop.Services
                 var responseBody = await response.Content.ReadAsStringAsync();
                 if (!response.IsSuccessStatusCode)
                 {
-                    // Вывод ошибки в окно Output Visual Studio
                     System.Diagnostics.Debug.WriteLine($"InsertProfile error: {response.StatusCode} - {responseBody}");
                     return false;
                 }

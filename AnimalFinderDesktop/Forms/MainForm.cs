@@ -130,7 +130,7 @@ namespace AnimalFinderDesktop.Forms
                     _currentUserRole = profiles[0]["role"].ToString();
                     if (_currentUserRole == "moderator" || _currentUserRole == "admin")
                     {
-                        btnModeration.Visible = true;
+                        //btnModeration.Visible = true;
                     }
                 }
             }
@@ -191,7 +191,7 @@ namespace AnimalFinderDesktop.Forms
                 Width = 120,
                 Font = new Font("Segoe UI", 10)
             };
-            cbStatusFilter.Items.AddRange(new[] { "Все", "Активные", "На модерации", "Закрытые" });
+            cbStatusFilter.Items.AddRange(new[] { "Все", "Активные", "На проверке", "Закрытые" });
             cbStatusFilter.SelectedIndex = 0;
             cbStatusFilter.SelectedIndexChanged += (s, e) => FilterListings();
 
@@ -238,22 +238,22 @@ namespace AnimalFinderDesktop.Forms
                 _ = LoadListingsAsync();
             };
 
-            btnModeration = new Button
-            {
-                Text = "🔧 Модерация",
-                Width = 100,
-                Height = 35,
-                BackColor = Color.FromArgb(255, 193, 7),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Visible = false
-            };
-            btnModeration.Click += (s, e) =>
-            {
-                using var modForm = new ModerationForm();
-                modForm.ShowDialog();
-                _ = LoadListingsAsync();
-            };
+            //btnModeration = new Button
+            //{
+            //    Text = "🔧 Модерация",
+            //    Width = 100,
+            //    Height = 35,
+            //    BackColor = Color.FromArgb(255, 193, 7),
+            //    ForeColor = Color.White,
+            //    FlatStyle = FlatStyle.Flat,
+            //    Visible = false
+            //};
+            //btnModeration.Click += (s, e) =>
+            //{
+            //    using var modForm = new ModerationForm();
+            //    modForm.ShowDialog();
+            //    _ = LoadListingsAsync();
+            //};
 
             btnNotifications = new Button
             {
@@ -287,7 +287,7 @@ namespace AnimalFinderDesktop.Forms
             topPanel.Controls.Add(btnRefresh);
             topPanel.Controls.Add(btnAddListing);
             topPanel.Controls.Add(btnProfile);
-            topPanel.Controls.Add(btnModeration);
+            //topPanel.Controls.Add(btnModeration);
             topPanel.Controls.Add(btnNotifications);
             topPanel.Controls.Add(lblStatus);
 
@@ -299,7 +299,7 @@ namespace AnimalFinderDesktop.Forms
             btnRefresh.Location = new Point(730, 12);
             btnAddListing.Location = new Point(820, 12);
             btnProfile.Location = new Point(990, 12);
-            btnModeration.Location = new Point(1100, 12);
+            //btnModeration.Location = new Point(1100, 12);
             btnNotifications.Location = new Point(1210, 12);
             lblStatus.Location = new Point(1340, 22);
 
@@ -372,8 +372,8 @@ namespace AnimalFinderDesktop.Forms
             string statusFilter = cbStatusFilter.SelectedItem?.ToString();
             if (statusFilter == "Активные")
                 filtered = filtered.Where(x => GetString(x, "status") == "active");
-            else if (statusFilter == "На модерации")
-                filtered = filtered.Where(x => GetString(x, "status") == "pending");
+            else if (statusFilter == "На проверке")
+                filtered = filtered.Where(x => GetString(x, "status") == "on_moderation");
             else if (statusFilter == "Закрытые")
                 filtered = filtered.Where(x => GetString(x, "status") == "closed" || GetString(x, "status") == "expired");
 
@@ -507,7 +507,19 @@ namespace AnimalFinderDesktop.Forms
                 Location = new Point(12, 255),
                 Size = new Size(256, 35)
             };
-
+            // Значок верификации животного в карточке
+            if (GetString(item, "is_animal_verified") == "True")
+            {
+                var verifiedBadge = new Label
+                {
+                    Text = "✓",
+                    Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                    ForeColor = Color.Green,
+                    Location = new Point(nameLabel.Right + 5, nameLabel.Top + 5),
+                    AutoSize = true
+                };
+                card.Controls.Add(verifiedBadge);
+            }
             // ПРЕОБРАЗОВАНИЕ ПОЛА (английский -> русский символ)
             string genderDisplay = GetString(item, "gender") switch
             {

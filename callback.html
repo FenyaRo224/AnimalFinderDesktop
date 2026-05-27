@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>AnimalFinder — Восстановление пароля</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            height: 100%;
+            width: 100%;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            margin: 0;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+            padding: 40px 32px;
+            max-width: 420px;
+            width: 100%;
+            text-align: center;
+            margin: 0 auto;
+        }
+        
+        .icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+        
+        h2 {
+            font-size: 26px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 12px;
+        }
+        
+        p {
+            font-size: 14px;
+            color: #718096;
+            margin-bottom: 28px;
+            line-height: 1.5;
+        }
+        
+        .input-group {
+            text-align: left;
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 8px;
+            color: #4a5568;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.2s;
+            background: #fff;
+            font-family: inherit;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        input::placeholder {
+            color: #a0aec0;
+            font-size: 14px;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.1s, box-shadow 0.2s;
+            margin-top: 8px;
+        }
+        
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            background: #cbd5e0;
+            transform: none;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+        
+        .message {
+            margin-top: 20px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            display: none;
+            font-weight: 500;
+        }
+        
+        .message.success {
+            background: #c6f6d5;
+            color: #22543d;
+            display: block;
+        }
+        
+        .message.error {
+            background: #fed7d7;
+            color: #742a2a;
+            display: block;
+        }
+        
+        .btn-secondary {
+            background: #718096;
+        }
+        
+        .btn-secondary:hover {
+            background: #4a5568;
+            box-shadow: 0 10px 20px rgba(113, 128, 150, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="card" id="app">
+        <!-- Блок подтверждения email (по умолчанию скрыт) -->
+        <div id="confirmContainer" style="display: none;">
+            <div class="icon">✅</div>
+            <h2>Email подтверждён!</h2>
+            <p>Ваш адрес электронной почты успешно подтверждён.<br>Теперь вы можете закрыть это окно и войти в приложение.</p>
+            <button class="btn-secondary" onclick="window.close()">Закрыть окно</button>
+        </div>
+
+        <!-- Блок сброса пароля (по умолчанию скрыт) -->
+        <div id="resetContainer" style="display: none;">
+            <div class="icon">🔑</div>
+            <h2>Сброс пароля</h2>
+            <p>Введите новый пароль для вашей учётной записи</p>
+            <div class="input-group">
+                <label for="newPassword">Новый пароль</label>
+                <input type="password" id="newPassword" placeholder="Минимум 6 символов">
+            </div>
+            <div class="input-group">
+                <label for="confirmPassword">Подтвердите пароль</label>
+                <input type="password" id="confirmPassword" placeholder="Повторите пароль">
+            </div>
+            <button id="resetButton">Сохранить пароль</button>
+            <div id="resetMessage" class="message"></div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const SUPABASE_URL = 'https://htusuxsjxxsudzxwjnvt.supabase.co';
+            const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh0dXN1eHNqeHhzdWR6eHdqbnZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYxNjc5MjcsImV4cCI6MjA4MTc0MzkyN30.pBVCYJIGIYq71vQmBjxCrAYEOS8oqrphd16xCtTdABA';
+            
+            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+            function getUrlParams() {
+                const params = new URLSearchParams(window.location.search);
+                return {
+                    token_hash: params.get('token_hash'),
+                    type: params.get('type')
+                };
+            }
+
+            const confirmContainer = document.getElementById('confirmContainer');
+            const resetContainer = document.getElementById('resetContainer');
+            const params = getUrlParams();
+
+            if (params.type === 'recovery' && params.token_hash) {
+                resetContainer.style.display = 'block';
+
+                const newPasswordInput = document.getElementById('newPassword');
+                const confirmPasswordInput = document.getElementById('confirmPassword');
+                const resetButton = document.getElementById('resetButton');
+                const resetMessage = document.getElementById('resetMessage');
+
+                resetButton.addEventListener('click', async () => {
+                    const newPassword = newPasswordInput.value;
+                    const confirmPassword = confirmPasswordInput.value;
+
+                    resetMessage.className = 'message';
+                    resetMessage.style.display = 'none';
+                    resetMessage.textContent = '';
+
+                    if (newPassword !== confirmPassword) {
+                        resetMessage.textContent = '❌ Пароли не совпадают';
+                        resetMessage.className = 'message error';
+                        resetMessage.style.display = 'block';
+                        return;
+                    }
+                    if (newPassword.length < 6) {
+                        resetMessage.textContent = '❌ Пароль должен содержать не менее 6 символов';
+                        resetMessage.className = 'message error';
+                        resetMessage.style.display = 'block';
+                        return;
+                    }
+
+                    resetButton.disabled = true;
+                    resetButton.textContent = 'Сохранение...';
+
+                    try {
+                        const { error: verifyError } = await supabase.auth.verifyOtp({
+                            token_hash: params.token_hash,
+                            type: 'recovery'
+                        });
+                        if (verifyError) throw verifyError;
+
+                        const { error: updateError } = await supabase.auth.updateUser({
+                            password: newPassword
+                        });
+                        if (updateError) throw updateError;
+
+                        resetMessage.textContent = '✅ Пароль успешно изменён! Теперь вы можете закрыть это окно.';
+                        resetMessage.className = 'message success';
+                        resetMessage.style.display = 'block';
+                        resetButton.disabled = true;
+                        resetButton.textContent = 'Готово';
+                        await supabase.auth.signOut();
+                    } catch (err) {
+                        console.error('Ошибка сброса пароля:', err);
+                        resetMessage.textContent = `❌ ${err.message || 'Произошла ошибка. Попробуйте ещё раз.'}`;
+                        resetMessage.className = 'message error';
+                        resetMessage.style.display = 'block';
+                        resetButton.disabled = false;
+                        resetButton.textContent = 'Сохранить пароль';
+                    }
+                });
+            } 
+            else if (params.type === 'signup' && params.token_hash) {
+                (async () => {
+                    try {
+                        const { error } = await supabase.auth.verifyOtp({
+                            token_hash: params.token_hash,
+                            type: 'signup'
+                        });
+                        if (error) throw error;
+                    } catch (err) {
+                        console.warn('Ошибка подтверждения email:', err);
+                    }
+                    confirmContainer.style.display = 'block';
+                })();
+            }
+            else {
+                confirmContainer.style.display = 'block';
+                const title = confirmContainer.querySelector('h2');
+                const desc = confirmContainer.querySelector('p');
+                if (title) title.textContent = 'Недействительная ссылка';
+                if (desc) desc.innerHTML = 'Ссылка устарела или повреждена. Пожалуйста, запросите новое письмо.';
+                const btn = confirmContainer.querySelector('button');
+                if (btn) btn.textContent = 'Закрыть';
+            }
+        })();
+    </script>
+</body>
+</html>

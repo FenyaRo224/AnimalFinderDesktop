@@ -20,7 +20,7 @@ namespace AnimalFinderDesktop.Forms
         private bool _isUserVerified;
         private Button btnMarkFound;
         private string _authorName;
-        private Dictionary<string, object> _verificationRequest; // заявка на верификацию
+        private Dictionary<string, object> _verificationRequest;
 
         public DetailForm(Dictionary<string, object> item)
         {
@@ -33,7 +33,7 @@ namespace AnimalFinderDesktop.Forms
 
             LoadCurrentUser();
             LoadAuthorName();
-            LoadVerificationRequest(); // загружаем заявку на верификацию
+            LoadVerificationRequest();
             LoadData();
         }
 
@@ -261,7 +261,7 @@ namespace AnimalFinderDesktop.Forms
             var updateRequest = new { status = "approved", reviewed_at = DateTime.UtcNow, reviewed_by = _currentUserId };
             var json = JsonConvert.SerializeObject(updateRequest);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/verification_requests?pet_listing_id=eq.{listingId}";
+            var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/verification_requests?pet_listing_id=eq.{listingId}&status=eq.pending";
             await client.PatchAsync(url, content);
 
             var updateListing = new { is_animal_verified = true };
@@ -273,6 +273,265 @@ namespace AnimalFinderDesktop.Forms
             MessageBox.Show("Владелец верифицирован! На объявлении появится значок.", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
             this.DialogResult = DialogResult.OK;
             this.Close();
+        }
+
+        private async void BtnPrint_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                // Получаем путь к первому фото
+                string photoPath = GetFirstPhotoPath();
+                string photoBase64 = "";
+
+                if (!string.IsNullOrEmpty(photoPath) && System.IO.File.Exists(photoPath))
+                {
+                    byte[] imageBytes = System.IO.File.ReadAllBytes(photoPath);
+                    photoBase64 = Convert.ToBase64String(imageBytes);
+                }
+
+                string petName = GetString("pet_name");
+                string breed = GetString("breed");
+                string listingType = GetString("listing_type");
+                string typeText = listingType == "lost" ? "ПРОПАЛ" : "НАЙДЕН";
+                string titleText = $"{typeText} {breed} {petName}".Trim();
+                if (string.IsNullOrEmpty(breed)) titleText = $"{typeText} {petName}".Trim();
+
+                string genderSymbol = "";
+                string gender = GetString("gender");
+                if (gender == "male") genderSymbol = "Мальчик";
+                else if (gender == "female") genderSymbol = "Девочка";
+
+                string ageText = FormatAgeForPrint();
+                string sizeText = GetSizeText();
+                string colorText = GetString("color");
+                string temperamentText = GetString("temperament");
+                string specialMarksText = GetString("special_marks");
+                string microchipText = GetString("microchip");
+                string locationText = GetString("location");
+                string incidentDateText = GetIncidentDateText();
+                string contactPhoneText = GetString("contact_phone");
+                string contactOtherText = GetString("contact");
+                string descriptionText = GetString("description");
+
+                // Формируем HTML-страницу в стиле листовки
+                string htmlContent = $@"
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='UTF-8'>
+            <title>AnimalFinder - {titleText}</title>
+            <style>
+                * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+                body {{ 
+                    font-family: 'Segoe UI', 'Arial', sans-serif; 
+                    background: white;
+                    padding: 20px;
+                }}
+                .flyer {{
+                    max-width: 800px;
+                    margin: 0 auto;
+                    background: white;
+                }}
+                .title {{
+                    font-size: 36px;
+                    font-weight: 900;
+                    text-align: center;
+                    text-transform: uppercase;
+                    letter-spacing: 2px;
+                    margin-bottom: 20px;
+                    padding: 15px;
+                    {(listingType == "lost" ? "color: #c0392b; border-bottom: 4px solid #c0392b;" : "color: #27ae60; border-bottom: 4px solid #27ae60;")}
+                }}
+                .photo {{
+                    text-align: center;
+                    margin: 20px 0;
+                }}
+                .photo img {{
+                    max-width: 100%;
+                    max-height: 400px;
+                    border: 1px solid #ddd;
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                }}
+                .info-block {{
+                    margin: 20px 0;
+                    padding: 15px;
+                    background: #f9f9f9;
+                    border-radius: 8px;
+                }}
+                .info-row {{
+                    font-size: 16px;
+                    margin: 8px 0;
+                    line-height: 1.4;
+                }}
+                .info-label {{
+                    font-weight: bold;
+                    display: inline-block;
+                    min-width: 100px;
+                }}
+                .highlight {{
+                    font-size: 20px;
+                    font-weight: bold;
+                    text-align: center;
+                    margin: 15px 0;
+                    padding: 10px;
+                    {(listingType == "lost" ? "background: #c0392b; color: white;" : "background: #27ae60; color: white;")}
+                    border-radius: 8px;
+                }}
+                .contact {{
+                    margin: 20px 0;
+                    padding: 15px;
+                    border: 2px dashed {(listingType == "lost" ? "#c0392b" : "#27ae60")};
+                    text-align: center;
+                    border-radius: 8px;
+                }}
+                .contact-phone {{
+                    font-size: 28px;
+                    font-weight: bold;
+                    letter-spacing: 2px;
+                    margin: 10px 0;
+                }}
+                .footer {{
+                    text-align: center;
+                    font-size: 10px;
+                    color: #999;
+                    margin-top: 30px;
+                    padding-top: 15px;
+                    border-top: 1px solid #eee;
+                }}
+                @media print {{
+                    body {{ padding: 0; }}
+                    .no-print {{ display: none; }}
+                    .flyer {{ max-width: 100%; }}
+                }}
+            </style>
+        </head>
+        <body>
+            <div class='no-print' style='text-align:center; margin-bottom:20px;'>
+                <button onclick='window.print()' style='padding:10px 20px; font-size:16px; margin:5px;'>🖨️ Печать</button>
+                <button onclick='window.close()' style='padding:10px 20px; font-size:16px; margin:5px;'>✖ Закрыть</button>
+            </div>
+            
+            <div class='flyer'>
+                <div class='title'>{EscapeHtml(titleText)}</div>
+                
+                {(string.IsNullOrEmpty(photoBase64) ? "" : $@"
+                <div class='photo'>
+                    <img src='data:image/jpeg;base64,{photoBase64}' alt='Фото животного' />
+                </div>
+                ")}
+                
+                {(listingType == "lost" ?
+                            $"<div class='highlight'>❗ ПОМОГИТЕ НАЙТИ! ❗</div>" :
+                            $"<div class='highlight'>🏠 ИЩЕТ ХОЗЯИНА! 🏠</div>")}
+                
+                <div class='info-block'>
+                    {(string.IsNullOrEmpty(genderSymbol) ? "" : $"<div class='info-row'><span class='info-label'>Пол:</span> {EscapeHtml(genderSymbol)}</div>")}
+                    {(string.IsNullOrEmpty(ageText) || ageText == "не указан" ? "" : $"<div class='info-row'><span class='info-label'>Возраст:</span> {EscapeHtml(ageText)}</div>")}
+                    {(string.IsNullOrEmpty(sizeText) ? "" : $"<div class='info-row'><span class='info-label'>Размер:</span> {EscapeHtml(sizeText)}</div>")}
+                    {(string.IsNullOrEmpty(colorText) ? "" : $"<div class='info-row'><span class='info-label'>Окрас:</span> {EscapeHtml(colorText)}</div>")}
+                    {(string.IsNullOrEmpty(temperamentText) ? "" : $"<div class='info-row'><span class='info-label'>Характер:</span> {EscapeHtml(temperamentText)}</div>")}
+                    {(string.IsNullOrEmpty(specialMarksText) ? "" : $"<div class='info-row'><span class='info-label'>Особые приметы:</span> {EscapeHtml(specialMarksText)}</div>")}
+                    {(string.IsNullOrEmpty(microchipText) ? "" : $"<div class='info-row'><span class='info-label'>Чип/клеймо:</span> {EscapeHtml(microchipText)}</div>")}
+                </div>
+                
+                <div class='info-block'>
+                    <div class='info-row'><span class='info-label'>{(listingType == "lost" ? "Пропал(а) из:" : "Найден(а) в:")}</span> {EscapeHtml(locationText)}</div>
+                    <div class='info-row'><span class='info-label'>Дата:</span> {EscapeHtml(incidentDateText)}</div>
+                </div>
+                
+                {(string.IsNullOrEmpty(descriptionText) ? "" : $@"
+                <div class='info-block'>
+                    <div class='info-row'>{EscapeHtml(descriptionText)}</div>
+                </div>
+                ")}
+                
+                <div class='contact'>
+                    <div style='font-size:14px; margin-bottom:10px;'>📞 ПО ВОПРОСАМ ЗВОНИТЕ:</div>
+                    <div class='contact-phone'>{EscapeHtml(contactPhoneText)}</div>
+                    {(string.IsNullOrEmpty(contactOtherText) ? "" : $"<div style='font-size:12px; margin-top:10px;'>{EscapeHtml(contactOtherText)}</div>")}
+                </div>
+                
+                <div class='footer'>
+                    Сгенерировано в AnimalFinder • {DateTime.Now:dd.MM.yyyy HH:mm}
+                </div>
+            </div>
+            
+            <script>
+                // Автоматически открываем окно печати
+                window.onload = function() {{
+                    setTimeout(function() {{
+                        window.print();
+                    }}, 500);
+                }};
+            </script>
+        </body>
+        </html>";
+
+                // Сохраняем HTML во временный файл
+                string tempHtml = Path.Combine(Path.GetTempPath(), $"AnimalFinder_{GetString("id")}.html");
+                System.IO.File.WriteAllText(tempHtml, htmlContent, Encoding.UTF8);
+
+                // Открываем в браузере
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(tempHtml) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка: {ex.Message}");
+            }
+        }
+
+        private string EscapeHtml(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return "—";
+            return System.Security.SecurityElement.Escape(text);
+        }
+
+        private string GetFirstPhotoPath()
+        {
+            string photoUrls = GetString("photo_urls");
+            if (!string.IsNullOrEmpty(photoUrls))
+            {
+                string first = photoUrls.Split(';')[0];
+                string fullPath = Path.Combine(Application.StartupPath, first);
+                if (System.IO.File.Exists(fullPath)) return fullPath;
+            }
+            return null;
+        }
+
+        private string GetStatusText()
+        {
+            string status = GetString("status");
+            return status == "active" ? "Активен" : (status == "on_moderation" ? "На проверке" : (status == "closed" ? "Закрыт" : "Просрочен"));
+        }
+
+        private string GetGenderText()
+        {
+            string gender = GetString("gender");
+            return gender == "male" ? "Мальчик" : (gender == "female" ? "Девочка" : "Не определён");
+        }
+
+        private string GetSizeText()
+        {
+            string size = GetString("size");
+            return size switch { "small" => "Маленький", "medium" => "Средний", "large" => "Большой", _ => size };
+        }
+
+        private string GetIncidentDateText()
+        {
+            var date = GetDate("incident_date");
+            return date.HasValue ? date.Value.ToString("dd.MM.yyyy") : "не указана";
+        }
+
+        private string FormatAgeForPrint()
+        {
+            int? months = GetInt("age");
+            if (!months.HasValue) return "не указан";
+            int years = months.Value / 12;
+            int month = months.Value % 12;
+            if (years > 0 && month > 0) return $"{years} год(а) {month} мес";
+            if (years > 0) return $"{years} {GetYearWord(years)}";
+            if (month > 0) return $"{month} {GetMonthWord(month)}";
+            return "не указан";
         }
 
         private void LoadData()
@@ -290,7 +549,7 @@ namespace AnimalFinderDesktop.Forms
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 350));
             mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // для документов верификации
+            mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 90));
 
             var listingType = GetString("listing_type");
@@ -344,7 +603,7 @@ namespace AnimalFinderDesktop.Forms
                 foreach (var url in urls)
                 {
                     string localPath = Path.Combine(Application.StartupPath, url);
-                    if (File.Exists(localPath))
+                    if (System.IO.File.Exists(localPath))
                         photoPaths.Add(localPath);
                 }
             }
@@ -600,8 +859,7 @@ namespace AnimalFinderDesktop.Forms
 
             mainLayout.Controls.Add(row2Layout, 0, 2);
 
-            // БЛОК ДОКУМЕНТОВ ВЕРИФИКАЦИИ (для модератора)
-            // БЛОК ДОКУМЕНТОВ ВЕРИФИКАЦИИ (для модератора)
+            // БЛОК ДОКУМЕНТОВ ВЕРИФИКАЦИИ
             if (_verificationRequest != null && GetString("is_animal_verified") != "True")
             {
                 var docPanel = new GroupBox
@@ -638,28 +896,19 @@ namespace AnimalFinderDesktop.Forms
                         FlatStyle = FlatStyle.Flat,
                         Size = new Size(150, 30)
                     };
-                    btnOpenDoc.Click += (s, e) =>
+                    btnOpenDoc.Click += (s, ev) =>
                     {
-                        if (File.Exists(fullPath))
+                        if (System.IO.File.Exists(fullPath))
                         {
-                            try
+                            var psi = new System.Diagnostics.ProcessStartInfo
                             {
-                                var psi = new System.Diagnostics.ProcessStartInfo
-                                {
-                                    FileName = fullPath,
-                                    UseShellExecute = true
-                                };
-                                System.Diagnostics.Process.Start(psi);
-                            }
-                            catch (Exception ex)
-                            {
-                                MessageBox.Show($"Не удалось открыть файл: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                            }
+                                FileName = fullPath,
+                                UseShellExecute = true
+                            };
+                            System.Diagnostics.Process.Start(psi);
                         }
                         else
-                        {
                             MessageBox.Show("Файл не найден", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        }
                     };
                     docLayout.Controls.Add(btnOpenDoc, 1, 2);
                 }
@@ -672,104 +921,13 @@ namespace AnimalFinderDesktop.Forms
                 mainLayout.Controls.Add(new Panel(), 0, 3);
             }
 
-            // СТРОКА 4: КНОПКИ
-            var row4Layout = new TableLayoutPanel
+            // СТРОКА КНОПОК
+            var buttonPanel = new FlowLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                ColumnCount = 4,
-                RowCount = 1,
-                Padding = new Padding(0, 10, 0, 0)
+                FlowDirection = FlowDirection.RightToLeft,
+                Padding = new Padding(0, 10, 0, 10)
             };
-            row4Layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
-            row4Layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
-            row4Layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
-            row4Layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
-
-            var dateLabel = new Label
-            {
-                Text = createdAt.HasValue ? $"📅 Опубликовано: {createdAt.Value:dd.MM.yyyy HH:mm}" : "",
-                Font = new Font("Segoe UI", 9),
-                ForeColor = Color.FromArgb(120, 120, 120),
-                TextAlign = ContentAlignment.MiddleLeft,
-                Dock = DockStyle.Fill
-            };
-            row4Layout.Controls.Add(dateLabel, 0, 0);
-
-            // КНОПКИ МОДЕРАТОРА
-            bool isModerator = _currentUserRole == "moderator" || _currentUserRole == "admin";
-            string currentStatus = GetString("status");
-
-            if (isModerator && currentStatus == "on_moderation")
-            {
-                var btnApprove = new Button
-                {
-                    Text = "✅ Одобрить",
-                    BackColor = Color.FromArgb(40, 167, 69),
-                    ForeColor = Color.White,
-                    FlatStyle = FlatStyle.Flat,
-                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                    Dock = DockStyle.Fill
-                };
-                btnApprove.Click += async (s, e) => await ApproveListing();
-                row4Layout.Controls.Add(btnApprove, 1, 0);
-
-                var btnReject = new Button
-                {
-                    Text = "❌ Отклонить",
-                    BackColor = Color.FromArgb(220, 53, 69),
-                    ForeColor = Color.White,
-                    FlatStyle = FlatStyle.Flat,
-                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                    Dock = DockStyle.Fill
-                };
-                btnReject.Click += async (s, e) => await RejectListing();
-                row4Layout.Controls.Add(btnReject, 2, 0);
-            }
-            else
-            {
-                row4Layout.Controls.Add(new Panel(), 1, 0);
-                row4Layout.Controls.Add(new Panel(), 2, 0);
-            }
-
-            // Кнопка верификации животного (для модератора, если есть заявка)
-            if (isModerator && _verificationRequest != null && GetString("is_animal_verified") != "True")
-            {
-                var btnVerify = new Button
-                {
-                    Text = "🐾 Подтвердить владельца",
-                    BackColor = Color.FromArgb(0, 122, 204),
-                    ForeColor = Color.White,
-                    FlatStyle = FlatStyle.Flat,
-                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                    Dock = DockStyle.Fill
-                };
-                btnVerify.Click += async (s, e) => await ApproveVerification();
-                row4Layout.Controls.Add(btnVerify, 3, 0);
-            }
-            else
-            {
-                row4Layout.Controls.Add(new Panel(), 3, 0);
-            }
-
-            // Кнопка "Найдено" (для автора или модератора, если статус active)
-            bool canMarkFound = (GetString("user_id") == _currentUserId || isModerator) && currentStatus == "active";
-            if (canMarkFound)
-            {
-                var btnFound = new Button
-                {
-                    Text = "🐾 ОТМЕТИТЬ НАЙДЕННЫМ",
-                    BackColor = Color.FromArgb(40, 167, 69),
-                    ForeColor = Color.White,
-                    FlatStyle = FlatStyle.Flat,
-                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                    Dock = DockStyle.Fill
-                };
-                btnFound.Click += async (s, e) => await MarkAsFound();
-                // Добавляем в свободное место (можно в 1 колонку)
-                if (row4Layout.Controls[1] is Panel && row4Layout.Controls[1].GetType() == typeof(Panel))
-                    row4Layout.Controls.RemoveAt(1);
-                row4Layout.Controls.Add(btnFound, 1, 0);
-            }
 
             var btnClose = new Button
             {
@@ -780,18 +938,98 @@ namespace AnimalFinderDesktop.Forms
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
                 Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                Anchor = AnchorStyles.Right
+                Margin = new Padding(5, 0, 5, 0)
             };
             btnClose.Click += (s, e) => this.Close();
-            var btnPanel = new Panel { Dock = DockStyle.Fill };
-            btnPanel.Controls.Add(btnClose);
-            btnClose.Location = new Point(btnPanel.Width - 130, 5);
-            btnPanel.Resize += (s, e) => btnClose.Location = new Point(btnPanel.Width - 130, 5);
 
-            // Добавляем кнопку закрытия в 4 колонку
-            row4Layout.Controls.Add(btnPanel, 3, 0);
+            var btnPrint = new Button
+            {
+                Text = "🖨️ Распечатать",
+                Width = 120,
+                Height = 35,
+                BackColor = Color.FromArgb(0, 122, 204),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                Margin = new Padding(5, 0, 5, 0)
+            };
+            btnPrint.Click += BtnPrint_Click;
 
-            mainLayout.Controls.Add(row4Layout, 0, 4);
+            buttonPanel.Controls.Add(btnClose);
+            buttonPanel.Controls.Add(btnPrint);
+
+            // Кнопки модератора (если нужно)
+            bool isModerator = _currentUserRole == "moderator" || _currentUserRole == "admin";
+            string currentStatus = GetString("status");
+
+            if (isModerator && currentStatus == "on_moderation")
+            {
+                var btnApprove = new Button
+                {
+                    Text = "✅ Одобрить",
+                    Width = 100,
+                    Height = 35,
+                    BackColor = Color.FromArgb(40, 167, 69),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    Margin = new Padding(5, 0, 5, 0)
+                };
+                btnApprove.Click += async (s, e) => await ApproveListing();
+                buttonPanel.Controls.Add(btnApprove);
+
+                var btnReject = new Button
+                {
+                    Text = "❌ Отклонить",
+                    Width = 100,
+                    Height = 35,
+                    BackColor = Color.FromArgb(220, 53, 69),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    Margin = new Padding(5, 0, 5, 0)
+                };
+                btnReject.Click += async (s, e) => await RejectListing();
+                buttonPanel.Controls.Add(btnReject);
+            }
+            else if (isModerator && _verificationRequest != null && GetString("is_animal_verified") != "True")
+            {
+                var btnVerify = new Button
+                {
+                    Text = "🐾 Подтвердить владельца",
+                    Width = 160,
+                    Height = 35,
+                    BackColor = Color.FromArgb(0, 122, 204),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                    Margin = new Padding(5, 0, 5, 0)
+                };
+                btnVerify.Click += async (s, e) => await ApproveVerification();
+                buttonPanel.Controls.Add(btnVerify);
+            }
+            else
+            {
+                bool canMarkFound = (GetString("user_id") == _currentUserId || isModerator) && currentStatus == "active";
+                if (canMarkFound)
+                {
+                    btnMarkFound = new Button
+                    {
+                        Text = "🐾 ОТМЕТИТЬ НАЙДЕННЫМ",
+                        Width = 160,
+                        Height = 35,
+                        BackColor = Color.FromArgb(40, 167, 69),
+                        ForeColor = Color.White,
+                        FlatStyle = FlatStyle.Flat,
+                        Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                        Margin = new Padding(5, 0, 5, 0)
+                    };
+                    btnMarkFound.Click += async (s, e) => await MarkAsFound();
+                    buttonPanel.Controls.Add(btnMarkFound);
+                }
+            }
+
+            mainLayout.Controls.Add(buttonPanel, 0, 4);
             this.Controls.Add(mainLayout);
         }
 

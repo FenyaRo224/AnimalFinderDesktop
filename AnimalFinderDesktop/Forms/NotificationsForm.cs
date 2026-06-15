@@ -19,7 +19,12 @@ namespace AnimalFinderDesktop.Forms
             InitializeComponent();
             this.StartPosition = FormStartPosition.CenterParent;
             this.Size = new Size(500, 600);
-            this.Text = "Уведомления";
+            this.MinimumSize = new Size(500, 600);
+            this.MaximumSize = new Size(500, 600);
+            this.MaximizeBox = false;
+            this.MinimizeBox = true;
+            this.ControlBox = true;
+            this.Text = "AnimalFinder - Уведомления";
             this.BackColor = Color.White;
             this.Load += async (s, e) => await LoadNotifications();
         }
@@ -38,7 +43,7 @@ namespace AnimalFinderDesktop.Forms
 
             btnMarkAllRead = new Button
             {
-                Text = "Отметить все как прочитанные",
+                Text = "✓ Отметить все как прочитанные",
                 Dock = DockStyle.Bottom,
                 Height = 45,
                 BackColor = Color.FromArgb(0, 122, 204),
@@ -71,15 +76,19 @@ namespace AnimalFinderDesktop.Forms
 
                 foreach (var n in _notifications)
                 {
+                    string type = n.type;
+                    // Пропускаем уведомления о сообщениях в чате
+                    if (type == "message") continue;
+
                     var notificationCard = CreateNotificationCard(n);
                     flpNotifications.Controls.Add(notificationCard);
                 }
 
-                if (_notifications.Count == 0)
+                if (flpNotifications.Controls.Count == 0)
                 {
                     var emptyLabel = new Label
                     {
-                        Text = "Нет уведомлений",
+                        Text = "📭 Нет уведомлений",
                         Font = new Font("Segoe UI", 14),
                         ForeColor = Color.Gray,
                         AutoSize = true,
@@ -160,7 +169,6 @@ namespace AnimalFinderDesktop.Forms
                 AutoSize = true
             };
 
-            // Кнопка "Прочитано"
             var markReadBtn = new Button
             {
                 Text = "✓",
@@ -176,12 +184,6 @@ namespace AnimalFinderDesktop.Forms
             {
                 await MarkAsRead(id);
                 await LoadNotifications();
-
-                // Если это сообщение, обновляем чаты
-                if (type == "message")
-                {
-                    await UpdateChatUnreadCount(relatedId);
-                }
             };
 
             card.Controls.Add(iconLabel);
@@ -202,10 +204,10 @@ namespace AnimalFinderDesktop.Forms
         {
             switch (type)
             {
-                case "message": return "💬";
-                case "verification": return "✅";
-                case "moderation": return "🛡️";
-                case "rating": return "⭐";
+                case "moderation": return "🛡️";      // Модерация объявления (одобрено/отклонено)
+                case "verification": return "✅";      // Верификация животного
+                case "rating": return "⭐";           // Изменение рейтинга
+                case "report": return "⚠️";           // Жалоба на объявление или профиль
                 default: return "🔔";
             }
         }
@@ -224,33 +226,74 @@ namespace AnimalFinderDesktop.Forms
         {
             await MarkAsRead(id);
 
-            if (type == "message" && !string.IsNullOrEmpty(relatedId))
+            // Обработка клика по разным типам уведомлений
+            switch (type)
             {
-                using var httpClient = new HttpClient();
-                httpClient.DefaultRequestHeaders.Add("apikey", SupabaseService.SupabaseKey);
-                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {SupabaseService.SupabaseKey}");
-                var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/messages?id=eq.{relatedId}&select=from_user_id";
-                var response = await httpClient.GetStringAsync(url);
-                var messages = Newtonsoft.Json.JsonConvert.DeserializeObject<List<dynamic>>(response);
-                if (messages != null && messages.Count > 0)
-                {
-                    string fromUserId = messages[0].from_user_id;
-                    var chatForm = new ChatForm(fromUserId);
-                    chatForm.ShowDialog();
-                }
+                case "moderation":
+                    // Открываем объявление связанное с модерацией
+                    if (!string.IsNullOrEmpty(relatedId))
+                    {
+                        await OpenListingById(relatedId);
+                    }
+                    break;
+
+                case "verification":
+                    // Открываем объявление связанное с верификацией
+                    if (!string.IsNullOrEmpty(relatedId))
+                    {
+                        await OpenListingById(relatedId);
+                    }
+                    break;
+
+                case "rating":
+                    // Открываем профиль чтобы увидеть новый рейтинг
+                    var profileForm = new ProfileForm();
+                    profileForm.ShowDialog();
+                    break;
+
+                case "report":
+                    // Жалоба на объявление или профиль - открываем связанное объявление
+                    if (!string.IsNullOrEmpty(relatedId))
+                    {
+                        await OpenListingById(relatedId);
+                    }
+                    break;
             }
 
             await LoadNotifications();
         }
 
+        private async Task OpenListingById(string listingId)
+        {
+            try
+            {
+                using var httpClient = new HttpClient();
+                httpClient.DefaultRequestHeaders.Add("apikey", SupabaseService.SupabaseKey);
+                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {SupabaseService.SupabaseKey}");
+
+                var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/pet_listings?id=eq.{listingId}&select=*";
+                var response = await httpClient.GetStringAsync(url);
+                var listings = Newtonsoft.Json.JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(response);
+
+                if (listings != null && listings.Count > 0)
+                {
+                    var detailForm = new DetailForm(listings[0]);
+                    detailForm.ShowDialog();
+                }
+                else
+                {
+                    MessageBox.Show("Объявление не найдено или было удалено", "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка: {ex.Message}");
+            }
+        }
+
         private async Task MarkAsRead(string notificationId)
         {
             await SupabaseService.MarkNotificationRead(notificationId);
-        }
-
-        private async Task UpdateChatUnreadCount(string messageId)
-        {
-            // Метод для обновления списка чатов (можно вызвать событие)
         }
 
         private async Task MarkAllRead()
@@ -262,19 +305,11 @@ namespace AnimalFinderDesktop.Forms
             httpClient.DefaultRequestHeaders.Add("apikey", SupabaseService.SupabaseKey);
             httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {SupabaseService.SupabaseKey}");
 
-            // Отмечаем все уведомления как прочитанные
             var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/notifications?user_id=eq.{userId}&is_read=eq.false";
             var updateData = new { is_read = true };
             var json = Newtonsoft.Json.JsonConvert.SerializeObject(updateData);
             var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
             await httpClient.PatchAsync(url, content);
-
-            // Отмечаем все сообщения как прочитанные
-            var msgUrl = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/messages?to_user_id=eq.{userId}&is_read=eq.false";
-            var msgUpdateData = new { is_read = true };
-            var msgJson = Newtonsoft.Json.JsonConvert.SerializeObject(msgUpdateData);
-            var msgContent = new StringContent(msgJson, System.Text.Encoding.UTF8, "application/json");
-            await httpClient.PatchAsync(msgUrl, msgContent);
 
             await LoadNotifications();
         }

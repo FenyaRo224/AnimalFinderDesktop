@@ -60,6 +60,7 @@ namespace AnimalFinderDesktop.Forms
             LoadVerificationRequest();
             LoadPhotos();
             InitializeUI();
+
         }
 
         private void LoadPhotos()
@@ -408,10 +409,10 @@ namespace AnimalFinderDesktop.Forms
 
         private int AddTripleInfoRow(Panel panel, string label1, string value1, string label2, string value2, string label3, string value3, int y)
         {
-            int colWidth = 170;
-            int labelWidth = 80;
+            int colWidth = 180;  // Было 170, увеличили
+            int labelWidth = 90;  // Было 80, увеличили
 
-            // Колонка 1 - НАЗВАНИЕ обычное, ЗНАЧЕНИЕ жирное
+            // Колонка 1
             var lbl1 = new Label
             {
                 Text = label1 + ":",
@@ -520,10 +521,10 @@ namespace AnimalFinderDesktop.Forms
                 flowLayout.Controls.Add(CreateInfoCard("📞 Контакты", contactText, 320, true));
             }
 
-            var description = GetString("description");
-            if (!string.IsNullOrEmpty(description))
+            var statusDescription = GetString("status_description");
+            if (!string.IsNullOrEmpty(statusDescription))
             {
-                flowLayout.Controls.Add(CreateInfoCard("📝 Описание", description, 520, false));
+                flowLayout.Controls.Add(CreateInfoCard("📝 Описание состояния поиска", statusDescription, 520, false));
             }
 
             cardsPanel.Controls.Add(flowLayout);
@@ -604,11 +605,23 @@ namespace AnimalFinderDesktop.Forms
             };
 
             var createdAt = GetDate("created_at");
+            var updatedAt = GetDate("last_updated");
+
+            string dateText = "";
             if (createdAt.HasValue)
+            {
+                dateText = $"📅 Создано: {createdAt.Value.ToString("dd.MM.yyyy в HH:mm")}";
+            }
+            if (updatedAt.HasValue && updatedAt.Value > createdAt)
+            {
+                dateText += $"  •  🔄 Обновлено: {updatedAt.Value.ToString("dd.MM.yyyy в HH:mm")}";
+            }
+
+            if (!string.IsNullOrEmpty(dateText))
             {
                 var dateLabel = new Label
                 {
-                    Text = $"📅 Объявление создано: {createdAt.Value.ToString("dd.MM.yyyy в HH:mm")}",
+                    Text = dateText,
                     Font = new Font("Segoe UI", 9),
                     ForeColor = MutedColor,
                     Location = new Point(25, 18),
@@ -679,6 +692,7 @@ namespace AnimalFinderDesktop.Forms
                 buttonPanel.Controls.Add(btnWrite);
             }
 
+            // Кнопки модерации (для модераторов/админов)
             if (isModerator && status == "on_moderation")
             {
                 var btnApprove = CreateModernButton("✅ Одобрить", SuccessColor, new Size(110, 38));
@@ -690,21 +704,21 @@ namespace AnimalFinderDesktop.Forms
                 buttonPanel.Controls.Add(btnApprove);
                 buttonPanel.Controls.Add(btnReject);
             }
-            else if (isModerator && _verificationRequest != null && GetString("is_animal_verified") != "True")
+
+            if (isModerator && _verificationRequest != null && GetString("is_animal_verified") != "True")
             {
                 var btnVerify = CreateModernButton("🐾 Верифицировать", PrimaryColor, new Size(140, 38));
                 btnVerify.Click += async (s, e) => await ApproveVerification();
                 buttonPanel.Controls.Add(btnVerify);
             }
-            else
+
+            // Кнопка редактирования (для владельца, модераторов и админов)
+            bool canEdit = (GetString("user_id") == _currentUserId) || isModerator;
+            if (canEdit)
             {
-                bool canMarkFound = (GetString("user_id") == _currentUserId || isModerator) && status == "active";
-                if (canMarkFound)
-                {
-                    var btnFound = CreateModernButton("🐾 НАЙДЕН", SuccessColor, new Size(120, 38));
-                    btnFound.Click += async (s, e) => await MarkAsFound();
-                    buttonPanel.Controls.Add(btnFound);
-                }
+                var btnEdit = CreateModernButton("✏️ Редактировать", PrimaryColor, new Size(160, 38));
+                btnEdit.Click += (s, e) => EditListing();
+                buttonPanel.Controls.Add(btnEdit);
             }
 
             footer.Controls.Add(buttonPanel);
@@ -1003,6 +1017,230 @@ namespace AnimalFinderDesktop.Forms
             if (result == DialogResult.Yes)
             {
                 MessageBox.Show("Объявление добавлено в отслеживаемые", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        private void ShowUpdateStatusDialog()
+        {
+            using var dialog = new Form
+            {
+                Text = "📝 Обновить статус поиска",
+                Size = new Size(500, 450),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false,
+                BackColor = BackgroundColor
+            };
+
+            int y = 20;
+            int left = 25;
+            int width = 430;
+
+            // Заголовок
+            var lblTitle = new Label
+            {
+                Text = "Обновление статуса поиска",
+                Font = new Font("Segoe UI", 14, FontStyle.Bold),
+                ForeColor = PrimaryColor,
+                Location = new Point(left, y),
+                AutoSize = true
+            };
+            dialog.Controls.Add(lblTitle);
+            y += 45;
+
+            // Выбор статуса
+            var lblStatus = new Label
+            {
+                Text = "Текущий статус:",
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                Location = new Point(left, y),
+                AutoSize = true
+            };
+            dialog.Controls.Add(lblStatus);
+            y += 28;
+
+            var cbStatus = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Location = new Point(left, y),
+                Size = new Size(width, 30),
+                Font = new Font("Segoe UI", 10)
+            };
+            cbStatus.Items.AddRange(new[] {
+                "🟢 Активный поиск",
+                "✅ Животное найдено!",
+                "❌ Закрыт без результата"
+            });
+            cbStatus.SelectedIndex = 0;
+            dialog.Controls.Add(cbStatus);
+            y += 45;
+
+            // Описание состояния
+            var lblDescription = new Label
+            {
+                Text = "Описание состояния поиска:",
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                Location = new Point(left, y),
+                AutoSize = true
+            };
+            dialog.Controls.Add(lblDescription);
+            y += 28;
+
+            var tbDescription = new TextBox
+            {
+                Location = new Point(left, y),
+                Size = new Size(width, 100),
+                Multiline = true,
+                Font = new Font("Segoe UI", 10),
+                PlaceholderText = "Например: Всё ещё ищу, последний раз видели near парк Горького..."
+            };
+            dialog.Controls.Add(tbDescription);
+            y += 115;
+
+            // Дата обновления
+            var lblDate = new Label
+            {
+                Text = "Дата обновления:",
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                Location = new Point(left, y),
+                AutoSize = true
+            };
+            dialog.Controls.Add(lblDate);
+            y += 28;
+
+            var dtpDate = new DateTimePicker
+            {
+                Location = new Point(left, y),
+                Size = new Size(200, 30),
+                Font = new Font("Segoe UI", 10),
+                Value = DateTime.Now,
+                Format = DateTimePickerFormat.Short
+            };
+            dialog.Controls.Add(dtpDate);
+            y += 50;
+
+            // Кнопки
+            var btnSave = new Button
+            {
+                Text = "💾 Сохранить обновление",
+                Size = new Size(200, 40),
+                Location = new Point(left, y),
+                BackColor = SuccessColor,
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                DialogResult = DialogResult.OK
+            };
+            btnSave.FlatAppearance.BorderSize = 0;
+            btnSave.Click += (s, e) =>
+            {
+                if (string.IsNullOrWhiteSpace(tbDescription.Text))
+                {
+                    MessageBox.Show("⚠️ Введите описание состояния поиска", "Внимание",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                dialog.DialogResult = DialogResult.OK;
+            };
+            dialog.Controls.Add(btnSave);
+
+            var btnCancel = new Button
+            {
+                Text = "✕ Отмена",
+                Size = new Size(140, 40),
+                Location = new Point(left + 220, y),
+                BackColor = MutedColor,
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                DialogResult = DialogResult.Cancel
+            };
+            btnCancel.FlatAppearance.BorderSize = 0;
+            dialog.Controls.Add(btnCancel);
+
+            dialog.AcceptButton = btnSave;
+            dialog.CancelButton = btnCancel;
+
+            if (dialog.ShowDialog() == DialogResult.OK)
+            {
+                SaveStatusUpdate(cbStatus.SelectedIndex, tbDescription.Text, dtpDate.Value);
+            }
+        }
+
+        private async Task SaveStatusUpdate(int statusIndex, string description, DateTime updateDate)
+        {
+            try
+            {
+                var listingId = GetString("id");
+                string statusText = statusIndex == 0 ? "active" : (statusIndex == 1 ? "found" : "closed");
+
+                using var httpClient = new HttpClient();
+                httpClient.DefaultRequestHeaders.Add("apikey", SupabaseService.SupabaseKey);
+                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {SupabaseService.SupabaseKey}");
+
+                // 1. Обновляем статус объявления
+                var updateData = new
+                {
+                    status = statusText,
+                    last_updated = updateDate
+                };
+                var json = JsonConvert.SerializeObject(updateData);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/pet_listings?id=eq.{listingId}";
+                var response = await httpClient.PatchAsync(url, content);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    MessageBox.Show($"❌ Ошибка обновления статуса", "Ошибка",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                // 2. Создаём запись в истории обновлений
+                var historyData = new
+                {
+                    listing_id = listingId,
+                    user_id = _currentUserId,
+                    status = statusText,
+                    description = description,
+                    updated_at = updateDate
+                };
+                var historyJson = JsonConvert.SerializeObject(historyData);
+                var historyContent = new StringContent(historyJson, Encoding.UTF8, "application/json");
+                await httpClient.PostAsync("https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/listing_status_updates", historyContent);
+
+                // 3. Если статус "found" или "closed", закрываем объявление
+                if (statusIndex == 1 || statusIndex == 2)
+                {
+                    var closeData = new { status = "closed" };
+                    var closeJson = JsonConvert.SerializeObject(closeData);
+                    var closeContent = new StringContent(closeJson, Encoding.UTF8, "application/json");
+                    await httpClient.PatchAsync(url, closeContent);
+                }
+
+                MessageBox.Show(
+                    "✅ Статус поиска обновлён!\n\n" +
+                    $"📝 Описание: {description}\n" +
+                    $"📅 Дата: {updateDate.ToString("dd.MM.yyyy")}",
+                    "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                this.DialogResult = DialogResult.OK;
+                this.Close();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"❌ Ошибка: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+        private void EditListing()
+        {
+            using var editForm = new EditListingForm(_item);
+            if (editForm.ShowDialog() == DialogResult.OK)
+            {
+                this.DialogResult = DialogResult.OK;
+                this.Close();
             }
         }
     }

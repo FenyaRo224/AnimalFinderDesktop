@@ -25,6 +25,7 @@ namespace AnimalFinderDesktop.Forms
         private PictureBox pbAvatar;
         private Label lblName;
         private Button btnBack;
+        private Button btnMenu;
         private FlowLayoutPanel flpMessages;
         private Panel pnlInput;
         private TextBox tbMessage;
@@ -40,7 +41,8 @@ namespace AnimalFinderDesktop.Forms
             InitializeComponent();
             this.StartPosition = FormStartPosition.CenterParent;
             this.Size = new Size(500, 700);
-            this.MinimumSize = new Size(400, 500);
+            this.MinimumSize = new Size(500, 700);
+            this.MaximumSize = new Size(500, 700);
             this.MaximizeBox = false;
             this.MinimizeBox = true;
             this.ControlBox = true;
@@ -77,20 +79,40 @@ namespace AnimalFinderDesktop.Forms
                 Size = new Size(40, 40),
                 Location = new Point(60, 15),
                 SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor = Color.FromArgb(0, 100, 180)
+                BackColor = Color.FromArgb(0, 100, 180),
+                Cursor = Cursors.Hand
             };
+            pbAvatar.Click += (s, e) => OpenUserProfile();
 
             lblName = new Label
             {
                 Font = new Font("Segoe UI", 12, FontStyle.Bold),
                 ForeColor = Color.White,
                 Location = new Point(110, 25),
-                AutoSize = true
+                AutoSize = true,
+                Cursor = Cursors.Hand
             };
+            lblName.Click += (s, e) => OpenUserProfile();
+
+            // Кнопка меню (три точки)
+            btnMenu = new Button
+            {
+                Text = "⋮",
+                Font = new Font("Segoe UI", 16, FontStyle.Bold),
+                ForeColor = Color.White,
+                BackColor = Color.Transparent,
+                FlatStyle = FlatStyle.Flat,
+                Size = new Size(40, 40),
+                Location = new Point(440, 15),
+                Cursor = Cursors.Hand
+            };
+            btnMenu.FlatAppearance.BorderSize = 0;
+            btnMenu.Click += BtnMenu_Click;
 
             pnlHeader.Controls.Add(btnBack);
             pnlHeader.Controls.Add(pbAvatar);
             pnlHeader.Controls.Add(lblName);
+            pnlHeader.Controls.Add(btnMenu);
 
             flpMessages = new FlowLayoutPanel
             {
@@ -131,6 +153,14 @@ namespace AnimalFinderDesktop.Forms
                 Multiline = true,
                 MaxLength = 500
             };
+            tbMessage.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Enter && !e.Shift)
+                {
+                    e.SuppressKeyPress = true;
+                    _ = SendMessage();
+                }
+            };
 
             btnSend = new Button
             {
@@ -151,6 +181,61 @@ namespace AnimalFinderDesktop.Forms
             this.Controls.Add(flpMessages);
             this.Controls.Add(pnlInput);
             this.Controls.Add(pnlHeader);
+        }
+
+        private void OpenUserProfile()
+        {
+            var profileForm = new ProfileForm(_toUserId);
+            profileForm.ShowDialog();
+        }
+
+        private void BtnMenu_Click(object sender, EventArgs e)
+        {
+            var menu = new ContextMenuStrip();
+
+            var deleteItem = new ToolStripMenuItem("🗑️ Удалить всю переписку");
+            deleteItem.Click += async (s, ev) => await DeleteChatHistory();
+            menu.Items.Add(deleteItem);
+
+            menu.Show(btnMenu, new Point(0, btnMenu.Height));
+        }
+
+        private async Task DeleteChatHistory()
+        {
+            var result = MessageBox.Show(
+                "⚠️ Удалить всю переписку с этим пользователем?\n\nЭто действие нельзя отменить!",
+                "Удаление переписки",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+
+            if (result != DialogResult.Yes) return;
+
+            try
+            {
+                using var httpClient = new HttpClient();
+                httpClient.DefaultRequestHeaders.Add("apikey", SupabaseService.SupabaseKey);
+                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {SupabaseService.SupabaseKey}");
+
+                // Удаляем все сообщения между этими пользователями
+                var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/messages?or=(and(from_user_id.eq.{_currentUserId},to_user_id.eq.{_toUserId}),and(from_user_id.eq.{_toUserId},to_user_id.eq.{_currentUserId}))";
+                var response = await httpClient.DeleteAsync(url);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    MessageBox.Show("✅ Переписка удалена", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    this.DialogResult = DialogResult.OK;
+                    this.Close();
+                }
+                else
+                {
+                    var error = await response.Content.ReadAsStringAsync();
+                    MessageBox.Show($"Ошибка удаления: {error}");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка: {ex.Message}");
+            }
         }
 
         private async void BtnAttach_Click(object sender, EventArgs e)

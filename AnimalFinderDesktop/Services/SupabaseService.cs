@@ -322,14 +322,24 @@ namespace AnimalFinderDesktop.Services
             {
                 using var httpClient = new HttpClient();
                 var url = $"{SupabaseUrl}/rest/v1/profiles";
+
+                // ВАЖНО: передаём ВСЕ поля с дефолтными значениями!
                 var profileData = new
                 {
                     user_id = userId,
                     display_name = displayName,
                     phone = phone,
                     role = "user",
-                    is_verified = false
+                    is_verified = false,
+                    rating = 0,
+                    rating_count = 0,
+                    show_phone = true,
+                    show_email = true,
+                    bio = "",
+                    social_links = "",
+                    avatar_url = ""
                 };
+
                 var json = Newtonsoft.Json.JsonConvert.SerializeObject(profileData);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
@@ -338,16 +348,21 @@ namespace AnimalFinderDesktop.Services
 
                 var response = await httpClient.PostAsync(url, content);
                 var responseBody = await response.Content.ReadAsStringAsync();
+
                 if (!response.IsSuccessStatusCode)
                 {
                     System.Diagnostics.Debug.WriteLine($"InsertProfile error: {response.StatusCode} - {responseBody}");
+                    MessageBox.Show($"Ошибка создания профиля: {responseBody}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return false;
                 }
+
+                System.Diagnostics.Debug.WriteLine($"Profile created successfully for user {userId}");
                 return true;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"InsertProfile exception: {ex.Message}");
+                MessageBox.Show($"Ошибка: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
         }

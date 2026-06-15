@@ -24,21 +24,24 @@ namespace AnimalFinderDesktop.Forms
         private static readonly Color MutedColor = Color.FromArgb(108, 117, 125);
         private static readonly Color BorderColor = Color.FromArgb(226, 232, 240);
 
-        private Label lblEmail, lblName, lblPhone, lblRole, lblBio, lblSocial, lblRating, lblStats;
+        private Label lblEmail, lblName, lblPhone, lblRole, lblBio, lblSocial, lblRating, lblStats, lblBanReason;
         private TextBox tbName, tbPhone, tbBio, tbSocial;
         private Button btnEdit, btnSave, btnClose, btnMyListings, btnLogout, btnDeleteAccount;
-        private Button btnChangeEmail, btnChangePassword, btnUploadAvatar;
+        private Button btnChangeEmail, btnChangePassword, btnUploadAvatar, btnBanUser, btnUnbanUser;
         private CheckBox chkShowPhone, chkShowEmail;
         private PictureBox pbAvatar;
-        private Panel avatarPanel, infoPanel, actionPanel;
+        private Panel avatarPanel, infoPanel, actionPanel, banPanel;
         private bool isEditing = false;
         private string _userId;
         private string _currentRole;
+        private string _currentUserRole; // Роль текущего пользователя
         private bool _isOwnProfile;
         private int _totalListings, _activeListings, _foundListings;
         private double _rating;
         private int _ratingCount;
         private int _userVote = 0;
+        private string _bannedReason = "";
+        private bool _isBanned = false;
 
         public ProfileForm() : this(null) { }
 
@@ -57,8 +60,41 @@ namespace AnimalFinderDesktop.Forms
             this.MaximizeBox = false;
             this.MinimizeBox = true;
 
+            // ЗАГРУЖАЕМ РОЛЬ СИНХРОННО ПЕРЕД СОЗДАНИЕМ UI
+            Task.Run(() => LoadCurrentUserRoleAsync()).Wait();
+
             InitializeControls();
             LoadProfile();
+        }
+
+        private async Task LoadCurrentUserRoleAsync()
+        {
+            try
+            {
+                var client = await SupabaseService.GetClient();
+                var currentUserId = client.Auth.CurrentUser?.Id;
+
+                using var httpClient = new HttpClient();
+                var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/profiles?user_id=eq.{currentUserId}&select=role";
+                httpClient.DefaultRequestHeaders.Add("apikey", SupabaseService.SupabaseKey);
+                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {SupabaseService.SupabaseKey}");
+                var response = await httpClient.GetStringAsync(url);
+                var profiles = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(response);
+                if (profiles != null && profiles.Count > 0 && profiles[0].ContainsKey("role"))
+                {
+                    _currentUserRole = profiles[0]["role"].ToString();
+                }
+                else
+                {
+                    _currentUserRole = "user";
+                }
+            }
+            catch { _currentUserRole = "user"; }
+        }
+
+        private bool IsModeratorOrAdmin()
+        {
+            return _currentUserRole == "moderator" || _currentUserRole == "admin";
         }
 
         private void InitializeControls()
@@ -146,11 +182,58 @@ namespace AnimalFinderDesktop.Forms
             this.Controls.Add(avatarPanel);
             y += 175;
 
+            // Панель бана (скрыта по умолчанию)
+            banPanel = new Panel
+            {
+                Location = new Point(leftMargin, y),
+                Size = new Size(780, 80),
+                BackColor = Color.FromArgb(255, 235, 235),
+                Visible = false
+            };
+            banPanel.Paint += (s, e) =>
+            {
+                using var pen = new Pen(DangerColor, 2);
+                e.Graphics.DrawRectangle(pen, 0, 0, banPanel.Width - 1, banPanel.Height - 1);
+            };
+
+            var lblBanIcon = new Label
+            {
+                Text = "🚫",
+                Font = new Font("Segoe UI", 24),
+                Location = new Point(15, 15),
+                Size = new Size(50, 50),
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+            banPanel.Controls.Add(lblBanIcon);
+
+            var lblBanTitle = new Label
+            {
+                Text = "АККАУНТ ЗАБЛОКИРОВАН",
+                Font = new Font("Segoe UI", 12, FontStyle.Bold),
+                ForeColor = DangerColor,
+                Location = new Point(75, 10),
+                AutoSize = true
+            };
+            banPanel.Controls.Add(lblBanTitle);
+
+            lblBanReason = new Label
+            {
+                Text = "",
+                Font = new Font("Segoe UI", 10),
+                ForeColor = TextColor,
+                Location = new Point(75, 38),
+                Size = new Size(680, 40),
+                AutoSize = false
+            };
+            banPanel.Controls.Add(lblBanReason);
+
+            this.Controls.Add(banPanel);
+
             // Основная информация
             infoPanel = new Panel
             {
                 Location = new Point(leftMargin, y),
-                Size = new Size(780, 440),  // Уменьшил с 480 до 440
+                Size = new Size(780, 440),
                 BackColor = CardColor
             };
             infoPanel.Paint += (s, e) =>
@@ -232,7 +315,7 @@ namespace AnimalFinderDesktop.Forms
             infoPanel.Controls.Add(tbSocial);
             fieldY += 42;
 
-            // Дата регистрации (новая строка внизу)
+            // Дата регистрации
             var lblRegDateTitle = new Label { Text = "На сайте с:", Location = new Point(20, fieldY), Size = new Size(labelWidth, 28), TextAlign = ContentAlignment.MiddleRight, Font = new Font("Segoe UI", 9) };
             var lblRegDate = new Label
             {
@@ -247,7 +330,7 @@ namespace AnimalFinderDesktop.Forms
             infoPanel.Controls.Add(lblRegDate);
 
             this.Controls.Add(infoPanel);
-            y += 455; 
+            y += 455;
 
             // Кнопки действий
             actionPanel = new Panel
@@ -279,15 +362,12 @@ namespace AnimalFinderDesktop.Forms
             if (_isOwnProfile)
             {
                 // === КНОПКИ ДЛЯ СВОЕГО ПРОФИЛЯ ===
-
-                // Кнопка Редактировать
                 btnEdit = CreateModernButton("✏️ Редактировать", PrimaryColor, new Size(140, 36));
                 btnEdit.Location = new Point(btnX, btnY);
                 btnEdit.Click += (s, e) => ToggleEditMode(true);
                 actionPanel.Controls.Add(btnEdit);
                 btnX += 150 + btnSpacing;
 
-                // Кнопка Сохранить (скрыта по умолчанию)
                 btnSave = CreateModernButton("✓ Сохранить", SuccessColor, new Size(140, 36));
                 btnSave.Location = new Point(btnX, btnY);
                 btnSave.Visible = false;
@@ -295,38 +375,32 @@ namespace AnimalFinderDesktop.Forms
                 actionPanel.Controls.Add(btnSave);
                 btnX += 150 + btnSpacing;
 
-                // Кнопка Сменить email
                 btnChangeEmail = CreateModernButton("📧 Сменить email", PrimaryColor, new Size(150, 36));
                 btnChangeEmail.Location = new Point(btnX, btnY);
                 btnChangeEmail.Click += (s, e) => new ChangeEmailForm().ShowDialog();
                 actionPanel.Controls.Add(btnChangeEmail);
                 btnX += 160 + btnSpacing;
 
-                // Кнопка Сменить пароль
                 btnChangePassword = CreateModernButton("🔑 Сменить пароль", PrimaryColor, new Size(160, 36));
                 btnChangePassword.Location = new Point(btnX, btnY);
                 btnChangePassword.Click += (s, e) => new ChangePasswordForm().ShowDialog();
                 actionPanel.Controls.Add(btnChangePassword);
 
-                // Вторая строка
                 btnY += 50;
                 btnX = 20;
 
-                // Кнопка Мои объявления
                 btnMyListings = CreateModernButton("📋 Мои объявления", MutedColor, new Size(170, 36));
                 btnMyListings.Location = new Point(btnX, btnY);
                 btnMyListings.Click += BtnMyListings_Click;
                 actionPanel.Controls.Add(btnMyListings);
                 btnX += 180 + btnSpacing;
 
-                // Кнопка Выйти
                 btnLogout = CreateModernButton("🚪 Выйти", DangerColor, new Size(120, 36));
                 btnLogout.Location = new Point(btnX, btnY);
                 btnLogout.Click += BtnLogout_Click;
                 actionPanel.Controls.Add(btnLogout);
                 btnX += 130 + btnSpacing;
 
-                // Кнопка Удалить аккаунт
                 btnDeleteAccount = CreateModernButton("🗑️ Удалить аккаунт", DangerColor, new Size(160, 36));
                 btnDeleteAccount.Location = new Point(btnX, btnY);
                 btnDeleteAccount.Click += BtnDeleteAccount_Click;
@@ -335,36 +409,48 @@ namespace AnimalFinderDesktop.Forms
             else
             {
                 // === КНОПКИ ДЛЯ ЧУЖОГО ПРОФИЛЯ ===
-
-                // Кнопка +1
                 var btnUp = CreateModernButton("👍 +1", SuccessColor, new Size(80, 36));
                 btnUp.Location = new Point(btnX, btnY);
                 btnUp.Click += async (s, e) => await RateUser(1);
                 actionPanel.Controls.Add(btnUp);
                 btnX += 90 + btnSpacing;
 
-                // Кнопка -1
                 var btnDown = CreateModernButton("👎 -1", DangerColor, new Size(80, 36));
                 btnDown.Location = new Point(btnX, btnY);
                 btnDown.Click += async (s, e) => await RateUser(-1);
                 actionPanel.Controls.Add(btnDown);
                 btnX += 90 + btnSpacing;
 
-                // Кнопка Написать
                 var btnWrite = CreateModernButton("✉️ Написать", PrimaryColor, new Size(130, 36));
                 btnWrite.Location = new Point(btnX, btnY);
                 btnWrite.Click += (s, e) => { var chat = new ChatForm(_userId); chat.ShowDialog(); };
                 actionPanel.Controls.Add(btnWrite);
                 btnX += 140 + btnSpacing;
 
-                // Кнопка Пожаловаться
                 var btnReport = CreateModernButton("⚠️ Пожаловаться", WarningColor, new Size(140, 36));
                 btnReport.Location = new Point(btnX, btnY);
                 btnReport.Click += async (s, e) => await ReportUser();
                 actionPanel.Controls.Add(btnReport);
+                btnX += 150 + btnSpacing;
+
+                // Кнопка Заблокировать (только для модераторов/админов)
+                if (IsModeratorOrAdmin())
+                {
+                    btnBanUser = CreateModernButton("🚫 Заблокировать", DangerColor, new Size(140, 36));
+                    btnBanUser.Location = new Point(btnX, btnY);
+                    btnBanUser.Click += async (s, e) => await BanUser();
+                    actionPanel.Controls.Add(btnBanUser);
+                    btnX += 160 + btnSpacing;
+
+                    // Кнопка Разблокировать (только если пользователь забанен)
+                    btnUnbanUser = CreateModernButton("✅ Разблокировать", SuccessColor, new Size(150, 36));
+                    btnUnbanUser.Location = new Point(btnX, btnY);
+                    btnUnbanUser.Click += async (s, e) => await UnbanUser();
+                    btnUnbanUser.Visible = false; // Скрываем пока не загрузится профиль
+                    actionPanel.Controls.Add(btnUnbanUser);
+                }
             }
 
-            // Кнопка Закрыть (всегда в конце)
             btnClose = CreateModernButton("✕ Закрыть", MutedColor, new Size(120, 36));
             btnClose.Location = new Point(640, btnY);
             btnClose.Click += (s, e) => this.Close();
@@ -389,6 +475,210 @@ namespace AnimalFinderDesktop.Forms
             button.FlatAppearance.MouseOverBackColor = ControlPaint.Light(backColor, 0.1f);
             button.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(backColor, 0.1f);
             return button;
+        }
+
+        private async Task BanUser()
+        {
+            // Диалог выбора причины бана
+            using var banDialog = new Form
+            {
+                Text = "Заблокировать пользователя",
+                Size = new Size(450, 300),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false,
+                BackColor = BackgroundColor
+            };
+
+            var lblTitle = new Label
+            {
+                Text = "🚫 Блокировка пользователя",
+                Font = new Font("Segoe UI", 14, FontStyle.Bold),
+                ForeColor = DangerColor,
+                Location = new Point(20, 15),
+                AutoSize = true
+            };
+            banDialog.Controls.Add(lblTitle);
+
+            var lblReason = new Label
+            {
+                Text = "Причина блокировки:",
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                Location = new Point(20, 60),
+                AutoSize = true
+            };
+            banDialog.Controls.Add(lblReason);
+
+            var cbReason = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Location = new Point(20, 85),
+                Size = new Size(390, 28),
+                Font = new Font("Segoe UI", 10)
+            };
+            cbReason.Items.AddRange(new[] {
+                "Спам и реклама",
+                "Оскорбления и угрозы",
+                "Мошенничество",
+                "Нарушение правил сервиса",
+                "Жестокое обращение с животными",
+                "Множественные жалобы",
+                "Другое"
+            });
+            cbReason.SelectedIndex = 0;
+            banDialog.Controls.Add(cbReason);
+
+            var lblCustomReason = new Label
+            {
+                Text = "Дополнительный комментарий (необязательно):",
+                Font = new Font("Segoe UI", 9),
+                Location = new Point(20, 120),
+                AutoSize = true
+            };
+            banDialog.Controls.Add(lblCustomReason);
+
+            var tbCustomReason = new TextBox
+            {
+                Location = new Point(20, 145),
+                Size = new Size(390, 60),
+                Multiline = true,
+                Font = new Font("Segoe UI", 9),
+                PlaceholderText = "Опишите причину подробнее..."
+            };
+            banDialog.Controls.Add(tbCustomReason);
+
+            var btnConfirm = new Button
+            {
+                Text = "🚫 Заблокировать",
+                Size = new Size(180, 36),
+                Location = new Point(20, 215),
+                BackColor = DangerColor,
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                DialogResult = DialogResult.OK
+            };
+            banDialog.Controls.Add(btnConfirm);
+
+            var btnCancel = new Button
+            {
+                Text = "Отмена",
+                Size = new Size(120, 36),
+                Location = new Point(210, 215),
+                BackColor = MutedColor,
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                DialogResult = DialogResult.Cancel
+            };
+            banDialog.Controls.Add(btnCancel);
+
+            banDialog.AcceptButton = btnConfirm;
+            banDialog.CancelButton = btnCancel;
+
+            if (banDialog.ShowDialog() != DialogResult.OK) return;
+
+            string reason = cbReason.SelectedItem.ToString();
+            if (!string.IsNullOrEmpty(tbCustomReason.Text))
+            {
+                reason += $" — {tbCustomReason.Text}";
+            }
+
+            try
+            {
+                using var httpClient = new HttpClient();
+                httpClient.DefaultRequestHeaders.Add("apikey", SupabaseService.SupabaseKey);
+                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {SupabaseService.SupabaseKey}");
+
+                // 1. Меняем роль на banned и сохраняем причину
+                var updateData = new
+                {
+                    role = "banned",
+                    ban_reason = reason,
+                    phone = (string)null,
+                    bio = (string)null,
+                    social_links = (string)null,
+                    avatar_url = (string)null
+                };
+                var json = JsonConvert.SerializeObject(updateData);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/profiles?user_id=eq.{_userId}";
+                await httpClient.PatchAsync(url, content);
+
+                // 2. Удаляем все объявления пользователя
+                var listingsUrl = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/pet_listings?user_id=eq.{_userId}";
+                await httpClient.DeleteAsync(listingsUrl);
+
+                // 3. Отправляем уведомление пользователю
+                await SupabaseService.SendNotification(
+                    _userId,
+                    "🚫 Аккаунт заблокирован",
+                    $"Ваш аккаунт был заблокирован администратором.\n\nПричина: {reason}",
+                    "system",
+                    null);
+
+                MessageBox.Show(
+                    $"✅ Пользователь заблокирован!\n\n" +
+                    $"Причина: {reason}\n\n" +
+                    $"• Все объявления удалены\n" +
+                    $"• Данные профиля очищены\n" +
+                    $"• Пользователь уведомлён",
+                    "Успех",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+
+                this.DialogResult = DialogResult.OK;
+                this.Close();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"❌ Ошибка блокировки: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private async Task UnbanUser()
+        {
+            var result = MessageBox.Show(
+                "✅ Разблокировать пользователя?\n\nПользователь сможет снова пользоваться сервисом.",
+                "Разблокировка",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
+            if (result != DialogResult.Yes) return;
+
+            try
+            {
+                using var httpClient = new HttpClient();
+                httpClient.DefaultRequestHeaders.Add("apikey", SupabaseService.SupabaseKey);
+                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {SupabaseService.SupabaseKey}");
+
+                var updateData = new
+                {
+                    role = "user",
+                    ban_reason = (string)null
+                };
+                var json = JsonConvert.SerializeObject(updateData);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/profiles?user_id=eq.{_userId}";
+                await httpClient.PatchAsync(url, content);
+
+                // Уведомляем пользователя
+                await SupabaseService.SendNotification(
+                    _userId,
+                    "✅ Аккаунт разблокирован",
+                    "Ваш аккаунт был разблокирован администратором. Вы снова можете пользоваться сервисом.",
+                    "system",
+                    null);
+
+                MessageBox.Show("✅ Пользователь разблокирован!", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                this.DialogResult = DialogResult.OK;
+                this.Close();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"❌ Ошибка: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private async Task RateUser(int delta)
@@ -418,7 +708,6 @@ namespace AnimalFinderDesktop.Forms
                     {
                         var deleteUrl = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/user_ratings?id=eq.{ratingId}";
                         await httpClient.DeleteAsync(deleteUrl);
-
                         newRating = _rating - existingVote;
                         newCount = Math.Max(0, _ratingCount - 1);
                         _userVote = 0;
@@ -430,7 +719,6 @@ namespace AnimalFinderDesktop.Forms
                         var updateContent = new StringContent(updateJson, Encoding.UTF8, "application/json");
                         var updateUrl = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/user_ratings?id=eq.{ratingId}";
                         await httpClient.PatchAsync(updateUrl, updateContent);
-
                         newRating = _rating - existingVote + delta;
                         _userVote = delta;
                     }
@@ -447,7 +735,6 @@ namespace AnimalFinderDesktop.Forms
                     var newJson = JsonConvert.SerializeObject(newRatingData);
                     var newContent = new StringContent(newJson, Encoding.UTF8, "application/json");
                     await httpClient.PostAsync("https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/user_ratings", newContent);
-
                     newRating = _rating + delta;
                     newCount = _ratingCount + 1;
                     _userVote = delta;
@@ -476,7 +763,7 @@ namespace AnimalFinderDesktop.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка: {ex.Message}");
+                MessageBox.Show($"❌ Ошибка: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -496,13 +783,9 @@ namespace AnimalFinderDesktop.Forms
                 var ratings = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(response);
 
                 if (ratings != null && ratings.Count > 0)
-                {
                     _userVote = Convert.ToInt32(ratings[0]["rating"]);
-                }
                 else
-                {
                     _userVote = 0;
-                }
 
                 UpdateVoteButtons();
             }
@@ -521,29 +804,13 @@ namespace AnimalFinderDesktop.Forms
                 {
                     if (btn.Text.Contains("+1"))
                     {
-                        if (_userVote == 1)
-                        {
-                            btn.Text = "✓ +1";
-                            btn.BackColor = SuccessColor;
-                        }
-                        else
-                        {
-                            btn.Text = "👍 +1";
-                            btn.BackColor = SuccessColor;
-                        }
+                        btn.Text = _userVote == 1 ? "✓ +1" : "👍 +1";
+                        btn.BackColor = SuccessColor;
                     }
                     else if (btn.Text.Contains("-1"))
                     {
-                        if (_userVote == -1)
-                        {
-                            btn.Text = "✓ -1";
-                            btn.BackColor = DangerColor;
-                        }
-                        else
-                        {
-                            btn.Text = "👎 -1";
-                            btn.BackColor = DangerColor;
-                        }
+                        btn.Text = _userVote == -1 ? "✓ -1" : "👎 -1";
+                        btn.BackColor = DangerColor;
                     }
                 }
             }
@@ -551,10 +818,12 @@ namespace AnimalFinderDesktop.Forms
 
         private async Task ReportUser()
         {
-            var result = MessageBox.Show("Пожаловаться на пользователя?", "Жалоба", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-            if (result != DialogResult.Yes) return;
-
-            MessageBox.Show("Жалоба отправлена модератору.", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            using var reportDialog = new ReportDialog(_userId, "profile");
+            var result = reportDialog.ShowDialog();
+            if (result == DialogResult.OK)
+            {
+                MessageBox.Show("✅ Жалоба на пользователя отправлена модераторам", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
         }
 
         private async void BtnUploadAvatar_Click(object sender, EventArgs e)
@@ -585,15 +854,26 @@ namespace AnimalFinderDesktop.Forms
             try
             {
                 var client = await SupabaseService.GetClient();
+                string email = "";
+
                 if (_isOwnProfile)
                 {
                     _userId = client.Auth.CurrentUser?.Id;
-                    var email = client.Auth.CurrentUser?.Email;
-                    lblEmail.Text = email;
+                    email = client.Auth.CurrentUser?.Email ?? "";
                 }
                 else
                 {
-                    lblEmail.Text = "скрыт";
+                    // Получаем email из профиля (для модераторов)
+                    using var httpClient = new HttpClient();
+                    var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/profiles?user_id=eq.{_userId}&select=email";
+                    httpClient.DefaultRequestHeaders.Add("apikey", SupabaseService.SupabaseKey);
+                    httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {SupabaseService.SupabaseKey}");
+                    var response = await httpClient.GetStringAsync(url);
+                    var profiles = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(response);
+                    if (profiles != null && profiles.Count > 0 && profiles[0].ContainsKey("email"))
+                    {
+                        email = profiles[0]["email"]?.ToString() ?? "";
+                    }
                 }
 
                 var profile = await SupabaseService.GetProfile(_userId);
@@ -611,6 +891,10 @@ namespace AnimalFinderDesktop.Forms
                     _rating = profile.ContainsKey("rating") ? Convert.ToDouble(profile["rating"]) : 0;
                     _ratingCount = profile.ContainsKey("rating_count") ? Convert.ToInt32(profile["rating_count"]) : 0;
 
+                    // Загружаем причину бана если есть
+                    _bannedReason = profile.ContainsKey("ban_reason") ? profile["ban_reason"]?.ToString() : "";
+                    _isBanned = role == "banned";
+
                     _currentRole = role;
 
                     var lblUserName = (Label)avatarPanel.Controls["lblUserName"];
@@ -618,10 +902,62 @@ namespace AnimalFinderDesktop.Forms
 
                     lblUserName.Text = string.IsNullOrEmpty(displayName) ? "Пользователь" : displayName;
 
-                    string roleText = role == "admin" ? "Администратор" : (role == "moderator" ? "Модератор" : (role == "banned" ? "Заблокирован" : "Пользователь"));
+                    string roleText = role == "admin" ? "Администратор" :
+                                     (role == "moderator" ? "Модератор" :
+                                     (role == "banned" ? "🚫 Заблокирован" : "Пользователь"));
                     lblUserRole.Text = roleText;
                     lblRole.Text = roleText;
 
+                    // Показываем/скрываем панель бана
+                    if (_isBanned)
+                    {
+                        banPanel.Visible = true;
+                        lblBanReason.Text = string.IsNullOrEmpty(_bannedReason)
+                            ? "Причина не указана"
+                            : $"Причина: {_bannedReason}";
+
+                        if (btnUnbanUser != null)
+                            btnUnbanUser.Visible = IsModeratorOrAdmin();
+
+                        if (btnBanUser != null)
+                            btnBanUser.Visible = false;
+                    }
+                    else
+                    {
+                        banPanel.Visible = false;
+                        if (btnUnbanUser != null)
+                            btnUnbanUser.Visible = false;
+                        if (btnBanUser != null)
+                            btnBanUser.Visible = IsModeratorOrAdmin();
+                    }
+
+                    // === EMAIL ===
+                    if (_isOwnProfile)
+                    {
+                        lblEmail.Text = email;
+                        lblEmail.ForeColor = PrimaryColor;
+                    }
+                    else if (IsModeratorOrAdmin())
+                    {
+                        // Модераторы и админы ВСЕГДА видят email
+                        lblEmail.Text = string.IsNullOrEmpty(email) ? "не указан" : email;
+                    }
+                    else
+                    {
+                        // Обычные пользователи видят только если разрешено
+                        if (showEmail)
+                        {
+                            lblEmail.Text = string.IsNullOrEmpty(email) ? "не указан" : email;
+                            lblEmail.ForeColor = PrimaryColor;
+                        }
+                        else
+                        {
+                            lblEmail.Text = "скрыт";
+                            lblEmail.ForeColor = MutedColor;
+                        }
+                    }
+
+                    // === ТЕЛЕФОН ===
                     if (_isOwnProfile)
                     {
                         lblPhone.Text = string.IsNullOrEmpty(phone) ? "Не указан" : phone;
@@ -629,16 +965,27 @@ namespace AnimalFinderDesktop.Forms
                         if (chkShowPhone != null) chkShowPhone.Checked = showPhone;
                         if (chkShowEmail != null) chkShowEmail.Checked = showEmail;
                     }
+                    else if (IsModeratorOrAdmin())
+                    {
+                        // Модераторы и админы ВСЕГДА видят телефон
+                        lblPhone.Text = string.IsNullOrEmpty(phone) ? "Не указан" : phone;
+                    }
                     else
                     {
+                        // Обычные пользователи видят только если разрешено
                         if (showPhone && !string.IsNullOrEmpty(phone))
+                        {
                             lblPhone.Text = phone;
+                            lblPhone.ForeColor = TextColor;
+                        }
                         else
+                        {
                             lblPhone.Text = "скрыт";
-                        if (!showEmail)
-                            lblEmail.Text = "скрыт";
+                            lblPhone.ForeColor = MutedColor;
+                        }
                     }
 
+                    // Рейтинг
                     if (_ratingCount > 0)
                         lblRating.Text = $"{_rating:F1} ⭐ ({_ratingCount} оценок)";
                     else if (_rating > 0)
@@ -666,13 +1013,9 @@ namespace AnimalFinderDesktop.Forms
                         if (profile.ContainsKey("created_at") && profile["created_at"] != null)
                         {
                             if (DateTime.TryParse(profile["created_at"].ToString(), out var regDate))
-                            {
                                 regDateLabel.Text = regDate.ToString("dd MMMM yyyy г.");
-                            }
                             else
-                            {
                                 regDateLabel.Text = profile["created_at"].ToString();
-                            }
                         }
                         else
                         {

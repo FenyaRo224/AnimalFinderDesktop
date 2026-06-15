@@ -22,8 +22,13 @@ namespace AnimalFinderDesktop.Forms
             InitializeComponent();
             this.StartPosition = FormStartPosition.CenterParent;
             this.Size = new Size(450, 600);
-            this.Text = "Сообщения";
+            this.MinimumSize = new Size(450, 600);
+            this.MaximumSize = new Size(450, 600);
+            this.Text = "AnimalFinder - Сообщения";
             this.BackColor = Color.White;
+            this.MaximizeBox = false;
+            this.MinimizeBox = true;
+            this.ControlBox = true;
             this.Shown += async (s, e) => await LoadDialogs();
 
             refreshTimer = new System.Windows.Forms.Timer { Interval = 5000 };
@@ -86,7 +91,7 @@ namespace AnimalFinderDesktop.Forms
                 {
                     var emptyLabel = new Label
                     {
-                        Text = "Нет сообщений",
+                        Text = "📭 Нет сообщений",
                         Font = new Font("Segoe UI", 14),
                         ForeColor = Color.Gray,
                         AutoSize = true,
@@ -223,8 +228,15 @@ namespace AnimalFinderDesktop.Forms
                 // Отмечаем сообщения как прочитанные
                 await MarkMessagesAsRead(userId);
                 var chatForm = new ChatForm(userId);
-                chatForm.ShowDialog();
-                await LoadDialogs();
+                if (chatForm.ShowDialog() == DialogResult.OK)
+                {
+                    // Если переписка была удалена, обновляем список
+                    await LoadDialogs();
+                }
+                else
+                {
+                    await LoadDialogs();
+                }
             };
 
             return card;

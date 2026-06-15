@@ -37,7 +37,9 @@ namespace AnimalFinderDesktop.Forms
         private List<string> _selectedTemperaments = new();
 
         private RadioButton rbNearest, rbFarthest, rbNewest;
-        private ComboBox cbRadiusFilter, cbCardWidth;
+        private TrackBar trackBarRadius;
+        private Label lblRadiusValue;
+        private ComboBox cbCardWidth;
         private string _sortMode = "nearest";
         private int _cardsPerRow = 4;
         private int _unreadNotifications = 0;
@@ -257,13 +259,11 @@ namespace AnimalFinderDesktop.Forms
                 all = all.Where(x => !_hiddenListings.Contains(GetString(x, "id"))).ToList();
             }
 
-            int radiusKm = 0;
-            if (cbRadiusFilter?.SelectedItem != null && cbRadiusFilter.SelectedItem.ToString() != "Все")
-            {
-                radiusKm = int.Parse(cbRadiusFilter.SelectedItem.ToString().Replace(" км", ""));
-            }
+            // НОВОЕ: Фильтр по расстоянию через TrackBar
+            int radiusKm = trackBarRadius?.Value ?? 100;
 
-            if (radiusKm > 0 && _hasUserLocation)
+            // Если ползунок на максимуме (100 км) - показываем все
+            if (radiusKm < 100 && _hasUserLocation)
             {
                 all = all.Where(x =>
                 {
@@ -570,6 +570,30 @@ namespace AnimalFinderDesktop.Forms
             photo.Controls.Add(typeBadge);
             photo.Controls.Add(statusBadge);
 
+            // ✅ НОВОЕ: Бейдж "Верифицирован" на фото в правом нижнем углу
+            bool isAnimalVerified = GetString(item, "is_animal_verified") == "True";
+            if (isAnimalVerified)
+            {
+                var verifyBadge = new Label
+                {
+                    Text = "✅ Верифицирован",
+                    Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                    ForeColor = SuccessColor,
+                    BackColor = Color.FromArgb(230, 255, 255, 255),
+                    Location = new Point(photo.Width - 130, photo.Height - 28),
+                    Size = new Size(120, 22),
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Anchor = AnchorStyles.Bottom | AnchorStyles.Right
+                };
+                photo.Controls.Add(verifyBadge);
+
+                // Обновляем позицию при изменении размера фото
+                photo.Resize += (s, e) =>
+                {
+                    verifyBadge.Location = new Point(photo.Width - 130, photo.Height - 28);
+                };
+            }
+
             string listingId = GetString(item, "id");
             bool isFav = _favorites.Contains(listingId);
             var menuBtn = new Button { FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent, ForeColor = MutedColor, Font = new Font("Segoe UI", 16), Text = "⋯", Size = new Size(36, 36), Location = new Point(cardWidth - 50, 8), Cursor = Cursors.Hand };
@@ -585,7 +609,10 @@ namespace AnimalFinderDesktop.Forms
             };
             photo.Controls.Add(menuBtn);
 
-            string petName = GetString(item, "pet_name"), breed = GetString(item, "breed"), species = GetString(item, "species");
+            // ✅ НОВОЕ: Заголовок "Порода • Имя" с AutoEllipsis
+            string petName = GetString(item, "pet_name");
+            string breed = GetString(item, "breed");
+            string species = GetString(item, "species");
             string gender = GetString(item, "gender") == "male" ? "♂" : (GetString(item, "gender") == "female" ? "♀" : "⚲");
             int? ageMonths = GetInt(item, "age");
             string ageStr = ageMonths.HasValue ? FormatAge(ageMonths.Value) : "возраст не указан";
@@ -595,19 +622,49 @@ namespace AnimalFinderDesktop.Forms
             string incidentStr = GetDate(item, "incident_date")?.ToString("dd.MM.yyyy") ?? "дата не указана";
             string location = GetString(item, "location");
             string createdStr = GetDate(item, "created_at")?.ToString("dd.MM.yyyy") ?? "";
-            bool isAnimalVerified = GetString(item, "is_animal_verified") == "True";
+
+            // Формируем заголовок: Порода • Имя
+            string titleText = "";
+            if (!string.IsNullOrEmpty(breed) && breed != "Другая" && breed != "Другой")
+            {
+                titleText = breed;
+            }
+            else if (!string.IsNullOrEmpty(species))
+            {
+                titleText = species;
+            }
+
+            if (!string.IsNullOrEmpty(petName))
+            {
+                if (!string.IsNullOrEmpty(titleText))
+                    titleText += $" • {petName}";
+                else
+                    titleText = petName;
+            }
 
             int y = 245;
-            var nameLabel = new Label { Text = $"{breed} {petName}".Trim(), Font = new Font("Segoe UI", 13, FontStyle.Bold), ForeColor = PrimaryColor, Location = new Point(15, y), AutoSize = true, Cursor = Cursors.Hand };
-            y += 28;
 
-            var infoLabel = new Label { Text = $"{species} • {gender} • {ageStr}", Font = new Font("Segoe UI", 9), ForeColor = MutedColor, Location = new Point(15, y), AutoSize = true, Cursor = Cursors.Hand };
+            // ✅ Заголовок с AutoEllipsis - текст не выйдет за границы!
+            var nameLabel = new Label
+            {
+                Text = titleText,
+                Font = new Font("Segoe UI", 13, FontStyle.Bold),
+                ForeColor = PrimaryColor,
+                Location = new Point(15, y),
+                Size = new Size(cardWidth - 30, 30),  // Фиксированный размер
+                AutoSize = false,
+                AutoEllipsis = true,  // Автоматически "..."
+                Cursor = Cursors.Hand
+            };
+            y += 32;
+
+            var infoLabel = new Label { Text = $"{species} • {gender} • {ageStr}", Font = new Font("Segoe UI", 9), ForeColor = MutedColor, Location = new Point(15, y), AutoSize = true, MaximumSize = new Size(cardWidth - 30, 0), Cursor = Cursors.Hand };
             y += 24;
 
-            var detailsLabel = new Label { Text = string.IsNullOrEmpty(color) ? size : $"{size} • {color}", Font = new Font("Segoe UI", 9), ForeColor = MutedColor, Location = new Point(15, y), AutoSize = true, Cursor = Cursors.Hand };
+            var detailsLabel = new Label { Text = string.IsNullOrEmpty(color) ? size : $"{size} • {color}", Font = new Font("Segoe UI", 9), ForeColor = MutedColor, Location = new Point(15, y), AutoSize = true, MaximumSize = new Size(cardWidth - 30, 0), Cursor = Cursors.Hand };
             y += 24;
 
-            var incidentLabelCtrl = new Label { Text = $"{incidentLabel} {incidentStr}", Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = TextColor, Location = new Point(15, y), AutoSize = true, Cursor = Cursors.Hand };
+            var incidentLabelCtrl = new Label { Text = $"{incidentLabel} {incidentStr}", Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = TextColor, Location = new Point(15, y), AutoSize = true, MaximumSize = new Size(cardWidth - 30, 0), Cursor = Cursors.Hand };
             y += 24;
 
             var locationLabel = new Label { Text = $"📍 {location}", Font = new Font("Segoe UI", 9), ForeColor = TextColor, Location = new Point(15, y), AutoSize = true, MaximumSize = new Size(cardWidth - 40, 0), Cursor = Cursors.Hand };
@@ -615,8 +672,7 @@ namespace AnimalFinderDesktop.Forms
             int dateY = y + 28;
             var dateLabel = new Label { Text = $"создано: {createdStr}", Font = new Font("Segoe UI", 8), ForeColor = MutedColor, AutoSize = true, Location = new Point(15, dateY), Cursor = Cursors.Hand };
 
-            if (isAnimalVerified)
-                card.Controls.Add(new Label { Text = "✓ Верифицирован", Font = new Font("Segoe UI", 8, FontStyle.Bold), ForeColor = SuccessColor, AutoSize = true, Location = new Point(cardWidth - 130, dateY) });
+            // ✅ УДАЛЕНО: старая надпись "Верифицирован" (теперь она на фото)
 
             photo.Click += (s, e) => ShowDetail(item);
             nameLabel.Click += (s, e) => ShowDetail(item);
@@ -643,7 +699,7 @@ namespace AnimalFinderDesktop.Forms
 
         private void ShowDetail(Dictionary<string, object> item)
         {
-            using var detailForm = new DetailForm(item);
+            using var detailForm = new DetailForm(item, _currentListings);
             detailForm.ShowDialog();
             _ = LoadAllData();
         }
@@ -885,30 +941,49 @@ namespace AnimalFinderDesktop.Forms
             rbFarthest.CheckedChanged += (s, e) => { if (rbFarthest.Checked) _sortMode = "farthest"; FilterListings(); };
             rbNewest.CheckedChanged += (s, e) => { if (rbNewest.Checked) _sortMode = "newest"; FilterListings(); };
 
+            // ✅ НОВОЕ: TrackBar вместо ComboBox для расстояния
             var lblRadius = new Label
             {
-                Text = "Радиус:",
+                Text = "📍 Расстояние:",
                 Location = new Point(585, 60),
                 AutoSize = true,
                 Font = new Font("Segoe UI", 9, FontStyle.Bold),
                 ForeColor = TextColor
             };
 
-            cbRadiusFilter = new ComboBox
+            trackBarRadius = new TrackBar
             {
-                Width = 90,
-                Location = new Point(640, 57),
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Font = new Font("Segoe UI", 9)
+                Minimum = 1,
+                Maximum = 100,
+                Value = 100,  // По умолчанию - все объявления
+                TickFrequency = 10,
+                SmallChange = 1,
+                LargeChange = 10,
+                Width = 220,
+                Height = 40,
+                Location = new Point(700, 55),
+                TickStyle = TickStyle.BottomRight,
+                BackColor = Color.White
             };
-            cbRadiusFilter.Items.AddRange(new object[] { "Все", "1 км", "5 км", "10 км", "20 км", "50 км", "100 км" });
-            cbRadiusFilter.SelectedIndex = 0;
-            cbRadiusFilter.SelectedIndexChanged += (s, e) => FilterListings();
+            trackBarRadius.Scroll += (s, e) =>
+            {
+                UpdateRadiusLabel();
+                FilterListings();
+            };
+
+            lblRadiusValue = new Label
+            {
+                Text = "🌐 Все",
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = PrimaryColor,
+                Location = new Point(925, 60),
+                AutoSize = true
+            };
 
             var lblCards = new Label
             {
                 Text = "В ряд:",
-                Location = new Point(745, 60),
+                Location = new Point(1000, 60),
                 AutoSize = true,
                 Font = new Font("Segoe UI", 9, FontStyle.Bold),
                 ForeColor = TextColor
@@ -917,7 +992,7 @@ namespace AnimalFinderDesktop.Forms
             cbCardWidth = new ComboBox
             {
                 Width = 60,
-                Location = new Point(795, 57),
+                Location = new Point(1050, 57),
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Font = new Font("Segoe UI", 9)
             };
@@ -931,7 +1006,7 @@ namespace AnimalFinderDesktop.Forms
                 ForeColor = MutedColor,
                 Font = new Font("Segoe UI", 9),
                 AutoSize = true,
-                Location = new Point(875, 60)
+                Location = new Point(1125, 60)
             };
 
             filterPanel.Controls.Add(txtSearch);
@@ -949,7 +1024,8 @@ namespace AnimalFinderDesktop.Forms
             filterPanel.Controls.Add(rbFarthest);
             filterPanel.Controls.Add(rbNewest);
             filterPanel.Controls.Add(lblRadius);
-            filterPanel.Controls.Add(cbRadiusFilter);
+            filterPanel.Controls.Add(trackBarRadius);
+            filterPanel.Controls.Add(lblRadiusValue);
             filterPanel.Controls.Add(lblCards);
             filterPanel.Controls.Add(cbCardWidth);
             filterPanel.Controls.Add(lblStatus);
@@ -973,6 +1049,22 @@ namespace AnimalFinderDesktop.Forms
             this.Controls.Add(headerPanel);
         }
 
+        // ✅ НОВЫЙ МЕТОД: обновление метки расстояния
+        private void UpdateRadiusLabel()
+        {
+            int value = trackBarRadius.Value;
+            if (value >= 100)
+            {
+                lblRadiusValue.Text = "🌐 Все";
+                lblRadiusValue.ForeColor = PrimaryColor;
+            }
+            else
+            {
+                lblRadiusValue.Text = $"{value} км";
+                lblRadiusValue.ForeColor = PrimaryColor;
+            }
+        }
+
         private void AdjustCardWidth()
         {
             int availableWidth = this.ClientSize.Width - 80;
@@ -993,6 +1085,11 @@ namespace AnimalFinderDesktop.Forms
                             if (child is PictureBox photo)
                             {
                                 photo.Width = cardWidth - 2;
+                            }
+                            // ✅ Обновляем размер заголовка при изменении ширины карточки
+                            if (child is Label lbl && lbl.Font.Bold && lbl.Font.Size == 13)
+                            {
+                                lbl.Size = new Size(cardWidth - 30, 30);
                             }
                         }
                     }

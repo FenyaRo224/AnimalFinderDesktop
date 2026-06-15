@@ -1,0 +1,85 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Выбор местоположения</title>
+    <script src="https://api-maps.yandex.ru/2.1/?apikey=fa70c664-eaf2-4737-b767-462f3986cb18&lang=ru_RU"></script>
+    <style>
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        .info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+            max-width: 300px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="info" id="info">Нажмите на карту, чтобы выбрать место</div>
+    <script>
+        var map, placemark;
+
+        ymaps.ready(init);
+
+        function init() {
+            map = new ymaps.Map("map", {
+                center: [55.76, 37.64],
+                zoom: 10,
+                controls: ["zoomControl", "fullscreenControl"]
+            });
+
+            map.events.add("click", function(e) {
+                var coords = e.get("coords");
+                if (placemark) {
+                    placemark.geometry.setCoordinates(coords);
+                } else {
+                    placemark = new ymaps.Placemark(coords, {}, { draggable: true });
+                    map.geoObjects.add(placemark);
+                    placemark.events.add("dragend", function() {
+                        updateInfo(placemark.geometry.getCoordinates());
+                    });
+                }
+                updateInfo(coords);
+            });
+
+            function updateInfo(coords) {
+                ymaps.geocode(coords).then(function(res) {
+                    var addr = res.geoObjects.get(0).getAddressLine();
+                    document.getElementById("info").innerHTML = "<b>Координаты:</b> " + coords[0].toFixed(6) + ", " + coords[1].toFixed(6) + "<br><b>Адрес:</b> " + addr;
+                    window.external.notify(JSON.stringify({
+                        lat: coords[0],
+                        lon: coords[1],
+                        address: addr
+                    }));
+                });
+            }
+        }
+
+        function setLocation(lat, lon) {
+            if (placemark) {
+                placemark.geometry.setCoordinates([lat, lon]);
+            } else {
+                placemark = new ymaps.Placemark([lat, lon], {}, { draggable: true });
+                map.geoObjects.add(placemark);
+                placemark.events.add("dragend", function() {
+                    updateInfo(placemark.geometry.getCoordinates());
+                });
+            }
+            map.setCenter([lat, lon], 15);
+            updateInfo([lat, lon]);
+        }
+    </script>
+</body>
+</html>

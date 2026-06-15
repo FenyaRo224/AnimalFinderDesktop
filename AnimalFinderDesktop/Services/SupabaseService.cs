@@ -108,14 +108,30 @@ namespace AnimalFinderDesktop.Services
         // ========== УВЕДОМЛЕНИЯ ==========
         public static async Task SendNotification(string userId, string title, string message, string type, string relatedId = null)
         {
-            var notif = new { user_id = userId, title, message, type, related_id = relatedId };
-            using var httpClient = new HttpClient();
-            var json = JsonConvert.SerializeObject(notif);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var url = $"{SupabaseUrl}/rest/v1/notifications";
-            httpClient.DefaultRequestHeaders.Add("apikey", SupabaseKey);
-            httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {SupabaseKey}");
-            await httpClient.PostAsync(url, content);
+            try
+            {
+                using var httpClient = new HttpClient();
+                var notif = new
+                {
+                    user_id = userId,
+                    title = title,
+                    message = message,
+                    type = type,
+                    related_id = relatedId,
+                    is_read = false,
+                    created_at = DateTime.UtcNow
+                };
+                var json = JsonConvert.SerializeObject(notif);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var url = $"{SupabaseUrl}/rest/v1/notifications";
+                httpClient.DefaultRequestHeaders.Add("apikey", SupabaseKey);
+                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {SupabaseKey}");
+                await httpClient.PostAsync(url, content);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"SendNotification error: {ex.Message}");
+            }
         }
 
         public static async Task<List<dynamic>> GetUnreadNotifications(string userId)

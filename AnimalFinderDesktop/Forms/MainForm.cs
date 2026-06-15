@@ -14,350 +14,124 @@ namespace AnimalFinderDesktop.Forms
 {
     public partial class MainForm : Form
     {
-        // UI элементы
-        private FlowLayoutPanel pnlListings;          // активные объявления
-        private FlowLayoutPanel pnlClosedListings;    // закрытые
-        private FlowLayoutPanel pnlHiddenListings;    // скрытые
-        private TextBox txtSearch;
-        private ComboBox cbTypeFilter;                // Пропал/Найден
-        private ComboBox cbSpeciesFilter;             // Вид
-        private ComboBox cbTemperamentFilter;
-        private Button btnTemperamentFilter;
-        private Label lblStatus;
-        private Button btnAddListing, btnProfile, btnNotifications, btnReportsModeration;
-        private System.Windows.Forms.Timer autoRefreshTimer;
-        private Button btnToggleClosed, btnToggleHidden;
-        private Panel pnlClosedHeader, pnlHiddenHeader;
+        private static readonly Color PrimaryColor = Color.FromArgb(0, 122, 204);
+        private static readonly Color SuccessColor = Color.FromArgb(40, 167, 69);
+        private static readonly Color DangerColor = Color.FromArgb(220, 53, 69);
+        private static readonly Color WarningColor = Color.FromArgb(255, 193, 7);
+        private static readonly Color BackgroundColor = Color.FromArgb(245, 247, 250);
+        private static readonly Color CardColor = Color.White;
+        private static readonly Color TextColor = Color.FromArgb(51, 51, 51);
+        private static readonly Color MutedColor = Color.FromArgb(108, 117, 125);
+        private static readonly Color BorderColor = Color.FromArgb(226, 232, 240);
 
-        // Переключатели статуса (активен / на проверке / закрыт)
-        private RadioButton rbActive, rbOnModeration, rbAllStatus;
-        private string _currentStatusFilter = "active"; // active, on_moderation, all
+        private FlowLayoutPanel pnlListings;
+        private TextBox txtSearch;
+        private ComboBox cbTypeFilter, cbSpeciesFilter, cbStatusFilter, cbViewFilter;
+        private Button btnTemperamentFilter;
+        private Label lblStatus, lblGreeting, lblLocationText;
+        private Button btnAddListing, btnProfile, btnNotifications, btnReportsModeration, btnChats, btnLocation;
+        private Panel pnlNotificationBadge, pnlChatBadge;
+        private System.Windows.Forms.Timer autoRefreshTimer;
+        private System.Windows.Forms.Timer blinkTimer;
+        private bool isBlinking = false;
+        private List<string> _selectedTemperaments = new();
+
+        private RadioButton rbNearest, rbFarthest, rbNewest;
+        private ComboBox cbRadiusFilter, cbCardWidth;
+        private string _sortMode = "nearest";
+        private int _cardsPerRow = 4;
+        private int _unreadNotifications = 0;
+        private int _unreadChats = 0;
 
         private List<Dictionary<string, object>> _currentListings = new();
         private List<string> _favorites = new();
         private List<string> _hiddenListings = new();
         private string _currentUserRole = "user";
-        private bool _showClosed = false;
-        private bool _showHidden = false;
-        private List<string> _selectedTemperaments = new();
+        private string _currentUserId;
+        private string _currentUserName = "Пользователь";
+
+        private double _userLat = 0;
+        private double _userLon = 0;
+        private bool _hasUserLocation = false;
+        private string _userFullAddress = "";
 
         public MainForm()
         {
-            InitializeComponent();
             this.StartPosition = FormStartPosition.CenterScreen;
-            this.Size = new Size(1300, 800);
-            this.Text = "AnimalFinder - Поиск пропавших животных";
-            this.BackColor = Color.FromArgb(240, 242, 245);
+            this.Size = new Size(1400, 900);
+            this.MinimumSize = new Size(1200, 700);
+            this.Text = "AnimalFinder - Главное Меню";
+            this.BackColor = BackgroundColor;
+            this.Font = new Font("Segoe UI", 9);
+            this.FormBorderStyle = FormBorderStyle.FixedSingle;
+            this.MaximizeBox = false;
+            this.MinimizeBox = true;
+            this.ControlBox = true;
+
+            LoadSavedLocation();
             SetupUI();
-            _ = LoadListingsAsync();
-            _ = LoadCurrentUserRole();
-            _ = LoadFavorites();
-            _ = LoadHiddenListings();
+            this.Shown += async (s, e) => await LoadAllData();
             StartAutoRefresh();
         }
 
-        private void InitializeComponent()
+        private void LoadSavedLocation()
         {
-            // Пустой, т.к. UI строится в SetupUI
-        }
-
-        private void SetupUI()
-        {
-            // Верхняя панель с фильтрами (первая строка)
-            var topPanel = new Panel
+            if (Properties.Settings.Default.HasLocation)
             {
-                Dock = DockStyle.Top,
-                Height = 55,
-                BackColor = Color.White,
-                Padding = new Padding(10)
-            };
-
-            txtSearch = new TextBox
-            {
-                Width = 200,
-                Font = new Font("Segoe UI", 11),
-                PlaceholderText = "Поиск по породе или кличке..."
-            };
-            txtSearch.TextChanged += (s, e) => FilterListings();
-
-            cbTypeFilter = new ComboBox
-            {
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Width = 100,
-                Font = new Font("Segoe UI", 10)
-            };
-            cbTypeFilter.Items.AddRange(new[] { "Все", "Пропал", "Найден" });
-            cbTypeFilter.SelectedIndex = 0;
-            cbTypeFilter.SelectedIndexChanged += (s, e) => FilterListings();
-
-            cbSpeciesFilter = new ComboBox
-            {
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Width = 100,
-                Font = new Font("Segoe UI", 10)
-            };
-            cbSpeciesFilter.Items.AddRange(new[] { "Все виды", "Собака", "Кошка", "Грызун", "Птица", "Другое" });
-            cbSpeciesFilter.SelectedIndex = 0;
-            cbSpeciesFilter.SelectedIndexChanged += (s, e) => FilterListings();
-
-            btnTemperamentFilter = new Button
-            {
-                Text = "Характер: Все",
-                Width = 120,
-                Height = 30,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(240, 242, 245),
-                TextAlign = ContentAlignment.MiddleLeft
-            };
-            btnTemperamentFilter.Click += BtnTemperamentFilter_Click;
-
-            btnAddListing = new Button
-            {
-                Text = "Добавить объявление",
-                Width = 160,
-                Height = 35,
-                BackColor = Color.FromArgb(40, 167, 69),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat
-            };
-            btnAddListing.Click += (s, e) =>
-            {
-                using var addForm = new AddListingForm();
-                if (addForm.ShowDialog() == DialogResult.OK)
-                    _ = LoadListingsAsync();
-            };
-
-            btnProfile = new Button
-            {
-                Text = "👤 Профиль",
-                Width = 100,
-                Height = 35,
-                BackColor = Color.FromArgb(0, 122, 204),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat
-            };
-            btnProfile.Click += (s, e) =>
-            {
-                using var profileForm = new ProfileForm();
-                profileForm.ShowDialog();
-                _ = LoadListingsAsync();
-            };
-
-            btnNotifications = new Button
-            {
-                Text = "🔔 Уведомления",
-                Width = 120,
-                Height = 35,
-                BackColor = Color.FromArgb(0, 122, 204),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat
-            };
-            btnNotifications.Click += (s, e) =>
-            {
-                using var notifForm = new NotificationsForm();
-                notifForm.ShowDialog();
-            };
-
-            btnReportsModeration = new Button
-            {
-                Text = "⚠️ Жалобы",
-                Width = 100,
-                Height = 35,
-                BackColor = Color.FromArgb(255, 193, 7),
-                ForeColor = Color.Black,
-                FlatStyle = FlatStyle.Flat,
-                Visible = false
-            };
-            btnReportsModeration.Click += (s, e) =>
-            {
-                using var reportsForm = new ModerationReportsForm();
-                reportsForm.ShowDialog();
-            };
-
-            lblStatus = new Label
-            {
-                Text = "Загрузка...",
-                ForeColor = Color.Gray,
-                Font = new Font("Segoe UI", 9),
-                AutoSize = true,
-                Location = new Point(10, 45)
-            };
-
-            // Размещение первой строки
-            topPanel.Controls.Add(txtSearch);
-            topPanel.Controls.Add(cbTypeFilter);
-            topPanel.Controls.Add(cbSpeciesFilter);
-            topPanel.Controls.Add(btnTemperamentFilter);
-            topPanel.Controls.Add(btnAddListing);
-            topPanel.Controls.Add(btnProfile);
-            topPanel.Controls.Add(btnNotifications);
-            topPanel.Controls.Add(btnReportsModeration);
-            topPanel.Controls.Add(lblStatus);
-
-            txtSearch.Location = new Point(10, 12);
-            cbTypeFilter.Location = new Point(220, 12);
-            cbSpeciesFilter.Location = new Point(330, 12);
-            btnTemperamentFilter.Location = new Point(440, 12);
-            btnAddListing.Location = new Point(900, 10);
-            btnProfile.Location = new Point(1070, 10);
-            btnNotifications.Location = new Point(1180, 10);
-            btnReportsModeration.Location = new Point(1070, 45);
-            lblStatus.Location = new Point(10, 45);
-
-            // Панель переключателей статуса (вторая строка)
-            var statusPanel = new Panel
-            {
-                Dock = DockStyle.Top,
-                Height = 40,
-                BackColor = Color.White,
-                Padding = new Padding(10)
-            };
-            rbAllStatus = new RadioButton { Text = "Все", Location = new Point(10, 10), AutoSize = true, Checked = true };
-            rbActive = new RadioButton { Text = "Активные", Location = new Point(70, 10), AutoSize = true };
-            rbOnModeration = new RadioButton { Text = "На проверке", Location = new Point(160, 10), AutoSize = true };
-            rbAllStatus.CheckedChanged += (s, e) => { if (rbAllStatus.Checked) _currentStatusFilter = "all"; FilterListings(); };
-            rbActive.CheckedChanged += (s, e) => { if (rbActive.Checked) _currentStatusFilter = "active"; FilterListings(); };
-            rbOnModeration.CheckedChanged += (s, e) => { if (rbOnModeration.Checked) _currentStatusFilter = "on_moderation"; FilterListings(); };
-            statusPanel.Controls.Add(rbAllStatus);
-            statusPanel.Controls.Add(rbActive);
-            statusPanel.Controls.Add(rbOnModeration);
-
-            // Панель для активных объявлений
-            pnlListings = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                AutoScroll = true,
-                Padding = new Padding(15),
-                BackColor = Color.FromArgb(240, 242, 245)
-            };
-
-            // Заголовок для закрытых объявлений
-            pnlClosedHeader = new Panel
-            {
-                Dock = DockStyle.Bottom,
-                Height = 40,
-                BackColor = Color.FromArgb(230, 230, 230),
-                Cursor = Cursors.Hand
-            };
-            btnToggleClosed = new Button
-            {
-                Text = "▶ Показать закрытые объявления",
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(230, 230, 230),
-                TextAlign = ContentAlignment.MiddleLeft,
-                Dock = DockStyle.Fill,
-                Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                ForeColor = Color.FromArgb(80, 80, 80)
-            };
-            btnToggleClosed.Click += (s, e) => ToggleClosedListings();
-            pnlClosedHeader.Controls.Add(btnToggleClosed);
-
-            pnlClosedListings = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Bottom,
-                AutoScroll = true,
-                Padding = new Padding(15),
-                BackColor = Color.FromArgb(240, 242, 245),
-                Visible = false,
-                Height = 0
-            };
-
-            // Заголовок для скрытых объявлений
-            pnlHiddenHeader = new Panel
-            {
-                Dock = DockStyle.Bottom,
-                Height = 40,
-                BackColor = Color.FromArgb(220, 220, 220),
-                Cursor = Cursors.Hand
-            };
-            btnToggleHidden = new Button
-            {
-                Text = "▶ Показать скрытые объявления",
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(220, 220, 220),
-                TextAlign = ContentAlignment.MiddleLeft,
-                Dock = DockStyle.Fill,
-                Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                ForeColor = Color.FromArgb(80, 80, 80)
-            };
-            btnToggleHidden.Click += (s, e) => ToggleHiddenListings();
-            pnlHiddenHeader.Controls.Add(btnToggleHidden);
-
-            pnlHiddenListings = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Bottom,
-                AutoScroll = true,
-                Padding = new Padding(15),
-                BackColor = Color.FromArgb(240, 242, 245),
-                Visible = false,
-                Height = 0
-            };
-
-            this.Controls.Add(pnlListings);
-            this.Controls.Add(pnlClosedListings);
-            this.Controls.Add(pnlHiddenListings);
-            this.Controls.Add(pnlClosedHeader);
-            this.Controls.Add(pnlHiddenHeader);
-            this.Controls.Add(statusPanel);
-            this.Controls.Add(topPanel);
-        }
-
-        private void BtnTemperamentFilter_Click(object sender, EventArgs e)
-        {
-            var menu = new ContextMenuStrip();
-            string[] temperaments = { "Спокойный", "Игривый", "Активный", "Ласковый", "Пугливый", "Дружелюбный", "Независимый", "Агрессивный", "Осторожный" };
-            foreach (var temp in temperaments)
-            {
-                var item = new ToolStripMenuItem(temp);
-                item.Checked = _selectedTemperaments.Contains(temp);
-                item.Click += (s, ev) =>
-                {
-                    if (item.Checked)
-                        _selectedTemperaments.Remove(temp);
-                    else
-                        _selectedTemperaments.Add(temp);
-                    UpdateTemperamentButtonText();
-                    FilterListings();
-                };
-                menu.Items.Add(item);
+                _userLat = Properties.Settings.Default.UserLat;
+                _userLon = Properties.Settings.Default.UserLon;
+                _hasUserLocation = true;
+                _userFullAddress = Properties.Settings.Default.UserAddress ?? "";
             }
-            menu.Items.Add(new ToolStripSeparator());
-            var clearItem = new ToolStripMenuItem("Сбросить все");
-            clearItem.Click += (s, ev) =>
+        }
+
+        private async Task LoadAllData()
+        {
+            await LoadCurrentUser();
+            await LoadListingsAsync();
+            await LoadFavorites();
+            await LoadHiddenListings();
+            await LoadCurrentUserRole();
+            UpdateGreeting();
+            FilterListings();
+            await UpdateNotificationsBadge();
+        }
+
+        private async Task LoadCurrentUser()
+        {
+            var client = await SupabaseService.GetClient();
+            _currentUserId = client.Auth.CurrentUser?.Id;
+
+            try
             {
-                _selectedTemperaments.Clear();
-                UpdateTemperamentButtonText();
-                FilterListings();
-            };
-            menu.Items.Add(clearItem);
-            menu.Show(btnTemperamentFilter, new Point(0, btnTemperamentFilter.Height));
+                using var httpClient = new HttpClient();
+                var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/profiles?user_id=eq.{_currentUserId}&select=display_name";
+                httpClient.DefaultRequestHeaders.Add("apikey", SupabaseService.SupabaseKey);
+                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {SupabaseService.SupabaseKey}");
+                var response = await httpClient.GetStringAsync(url);
+                var profiles = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(response);
+                if (profiles != null && profiles.Count > 0 && profiles[0].ContainsKey("display_name"))
+                {
+                    _currentUserName = profiles[0]["display_name"].ToString();
+                }
+            }
+            catch { }
         }
 
-        private void UpdateTemperamentButtonText()
+        private void UpdateGreeting()
         {
-            if (_selectedTemperaments.Count == 0)
-                btnTemperamentFilter.Text = "Характер: Все";
-            else if (_selectedTemperaments.Count == 1)
-                btnTemperamentFilter.Text = $"Характер: {_selectedTemperaments[0]}";
-            else
-                btnTemperamentFilter.Text = $"Характер: {_selectedTemperaments.Count} выбрано";
-        }
-
-        private void StartAutoRefresh()
-        {
-            autoRefreshTimer = new System.Windows.Forms.Timer { Interval = 60000 };
-            autoRefreshTimer.Tick += async (s, e) => await LoadListingsAsync();
-            autoRefreshTimer.Start();
+            if (lblGreeting != null)
+            {
+                lblGreeting.Text = $"Здравствуйте, {_currentUserName}!";
+            }
         }
 
         private async Task LoadFavorites()
         {
             try
             {
-                var client = await SupabaseService.GetClient();
-                var userId = client.Auth.CurrentUser?.Id;
                 using var httpClient = new HttpClient();
-                var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/favorites?user_id=eq.{userId}&select=listing_id";
+                var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/favorites?user_id=eq.{_currentUserId}&select=listing_id";
                 httpClient.DefaultRequestHeaders.Add("apikey", SupabaseService.SupabaseKey);
                 httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {SupabaseService.SupabaseKey}");
                 var response = await httpClient.GetStringAsync(url);
@@ -371,10 +145,8 @@ namespace AnimalFinderDesktop.Forms
         {
             try
             {
-                var client = await SupabaseService.GetClient();
-                var userId = client.Auth.CurrentUser?.Id;
                 using var httpClient = new HttpClient();
-                var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/hidden_listings?user_id=eq.{userId}&select=listing_id";
+                var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/hidden_listings?user_id=eq.{_currentUserId}&select=listing_id";
                 httpClient.DefaultRequestHeaders.Add("apikey", SupabaseService.SupabaseKey);
                 httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {SupabaseService.SupabaseKey}");
                 var response = await httpClient.GetStringAsync(url);
@@ -388,10 +160,8 @@ namespace AnimalFinderDesktop.Forms
         {
             try
             {
-                var client = await SupabaseService.GetClient();
-                var userId = client.Auth.CurrentUser?.Id;
                 using var httpClient = new HttpClient();
-                var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/profiles?user_id=eq.{userId}&select=role";
+                var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/profiles?user_id=eq.{_currentUserId}&select=role";
                 httpClient.DefaultRequestHeaders.Add("apikey", SupabaseService.SupabaseKey);
                 httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {SupabaseService.SupabaseKey}");
                 var response = await httpClient.GetStringAsync(url);
@@ -418,22 +188,30 @@ namespace AnimalFinderDesktop.Forms
                 var response = await client.GetStringAsync(url);
                 _currentListings = JsonConvert.DeserializeObject<List<Dictionary<string, object>>>(response) ?? new();
                 lblStatus.Text = $"Найдено: {_currentListings.Count}";
-                await LoadFavorites();
-                await LoadHiddenListings();
-                FilterListings();
             }
             catch (Exception ex)
             {
-                lblStatus.Text = $"Ошибка: {ex.Message}";
+                lblStatus.Text = $"Ошибка";
                 MessageBox.Show($"Ошибка загрузки: {ex.Message}");
             }
+        }
+
+        private double GetDistance(double lat1, double lon1, double lat2, double lon2)
+        {
+            const double R = 6371;
+            double dLat = (lat2 - lat1) * Math.PI / 180;
+            double dLon = (lon2 - lon1) * Math.PI / 180;
+            double a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                       Math.Cos(lat1 * Math.PI / 180) * Math.Cos(lat2 * Math.PI / 180) *
+                       Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+            double c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+            return R * c;
         }
 
         private void FilterListings()
         {
             var filtered = _currentListings.AsEnumerable();
 
-            // Поиск
             string search = txtSearch.Text.Trim().ToLower();
             if (!string.IsNullOrEmpty(search))
             {
@@ -441,462 +219,413 @@ namespace AnimalFinderDesktop.Forms
                 {
                     string petName = GetString(x, "pet_name");
                     string breed = GetString(x, "breed");
-                    string fullTitle = $"{breed} {petName}".ToLower();
-                    return fullTitle.Contains(search) || petName.Contains(search);
+                    return $"{breed} {petName}".ToLower().Contains(search) || petName.Contains(search);
                 });
             }
 
-            // Тип
-            string typeFilter = cbTypeFilter.SelectedItem?.ToString();
-            if (typeFilter == "Пропал")
-                filtered = filtered.Where(x => GetString(x, "listing_type") == "lost");
-            else if (typeFilter == "Найден")
-                filtered = filtered.Where(x => GetString(x, "listing_type") == "found");
+            string type = cbTypeFilter.SelectedItem?.ToString();
+            if (type == "Пропал") filtered = filtered.Where(x => GetString(x, "listing_type") == "lost");
+            else if (type == "Найден") filtered = filtered.Where(x => GetString(x, "listing_type") == "found");
 
-            // Вид
-            string speciesFilter = cbSpeciesFilter.SelectedItem?.ToString();
-            if (speciesFilter != "Все виды")
-                filtered = filtered.Where(x => GetString(x, "species") == speciesFilter);
+            string species = cbSpeciesFilter.SelectedItem?.ToString();
+            if (species != "Все виды") filtered = filtered.Where(x => GetString(x, "species") == species);
 
-            // Характер
             if (_selectedTemperaments.Any())
+                filtered = filtered.Where(x => _selectedTemperaments.Contains(GetString(x, "temperament")));
+
+            string statusFilter = cbStatusFilter.SelectedItem?.ToString();
+            if (statusFilter == "Активные") filtered = filtered.Where(x => GetString(x, "status") == "active");
+            else if (statusFilter == "На проверке") filtered = filtered.Where(x => GetString(x, "status") == "on_moderation");
+
+            string viewFilter = cbViewFilter.SelectedItem?.ToString();
+            var all = filtered.ToList();
+
+            if (viewFilter == "Отслеживаемые")
             {
-                filtered = filtered.Where(x =>
-                {
-                    string temp = GetString(x, "temperament");
-                    return _selectedTemperaments.Contains(temp);
-                });
+                all = all.Where(x => _favorites.Contains(GetString(x, "id"))).ToList();
+            }
+            else if (viewFilter == "Закрытые")
+            {
+                all = all.Where(x => GetString(x, "status") == "closed" || GetString(x, "status") == "expired").ToList();
+            }
+            else if (viewFilter == "Скрытые")
+            {
+                all = all.Where(x => _hiddenListings.Contains(GetString(x, "id"))).ToList();
+            }
+            else
+            {
+                all = all.Where(x => !_hiddenListings.Contains(GetString(x, "id"))).ToList();
             }
 
-            // Статус (по переключателям)
-            if (_currentStatusFilter == "active")
-                filtered = filtered.Where(x => GetString(x, "status") == "active");
-            else if (_currentStatusFilter == "on_moderation")
-                filtered = filtered.Where(x => GetString(x, "status") == "on_moderation");
-            // "all" ничего не делает
+            int radiusKm = 0;
+            if (cbRadiusFilter?.SelectedItem != null && cbRadiusFilter.SelectedItem.ToString() != "Все")
+            {
+                radiusKm = int.Parse(cbRadiusFilter.SelectedItem.ToString().Replace(" км", ""));
+            }
 
-            // Разделяем на активные (не закрытые и не скрытые), закрытые, скрытые
-            var activeListings = filtered.Where(x =>
-                GetString(x, "status") != "closed" && GetString(x, "status") != "expired" &&
-                !_hiddenListings.Contains(GetString(x, "id"))).ToList();
+            if (radiusKm > 0 && _hasUserLocation)
+            {
+                all = all.Where(x =>
+                {
+                    if (x.ContainsKey("latitude") && x["latitude"] != null && x.ContainsKey("longitude") && x["longitude"] != null)
+                    {
+                        double lat = Convert.ToDouble(x["latitude"]);
+                        double lon = Convert.ToDouble(x["longitude"]);
+                        return GetDistance(_userLat, _userLon, lat, lon) <= radiusKm;
+                    }
+                    return false;
+                }).ToList();
+            }
 
-            var closedListings = filtered.Where(x =>
-                (GetString(x, "status") == "closed" || GetString(x, "status") == "expired") &&
-                !_hiddenListings.Contains(GetString(x, "id"))).ToList();
+            if (_sortMode == "nearest" && _hasUserLocation)
+            {
+                all = all.OrderBy(x =>
+                {
+                    if (x.ContainsKey("latitude") && x["latitude"] != null && x.ContainsKey("longitude") && x["longitude"] != null)
+                    {
+                        double lat = Convert.ToDouble(x["latitude"]);
+                        double lon = Convert.ToDouble(x["longitude"]);
+                        return GetDistance(_userLat, _userLon, lat, lon);
+                    }
+                    return double.MaxValue;
+                }).ToList();
+            }
+            else if (_sortMode == "farthest" && _hasUserLocation)
+            {
+                all = all.OrderByDescending(x =>
+                {
+                    if (x.ContainsKey("latitude") && x["latitude"] != null && x.ContainsKey("longitude") && x["longitude"] != null)
+                    {
+                        double lat = Convert.ToDouble(x["latitude"]);
+                        double lon = Convert.ToDouble(x["longitude"]);
+                        return GetDistance(_userLat, _userLon, lat, lon);
+                    }
+                    return -1;
+                }).ToList();
+            }
+            else
+            {
+                all = all.OrderByDescending(x => GetDateTime(x, "created_at")).ToList();
+            }
 
-            var hiddenListings = filtered.Where(x => _hiddenListings.Contains(GetString(x, "id"))).ToList();
-
-            // Сортировка: избранные в начало
-            activeListings = activeListings.OrderByDescending(x => _favorites.Contains(GetString(x, "id")))
-                                          .ThenByDescending(x => GetDateTime(x, "created_at")).ToList();
-            closedListings = closedListings.OrderByDescending(x => GetDateTime(x, "created_at")).ToList();
-            hiddenListings = hiddenListings.OrderByDescending(x => GetDateTime(x, "created_at")).ToList();
-
-            DisplayListings(activeListings);
-            DisplayClosedListings(closedListings);
-            DisplayHiddenListings(hiddenListings);
+            DisplayListings(all);
         }
 
         private void DisplayListings(List<Dictionary<string, object>> listings)
         {
             pnlListings.Controls.Clear();
+
             foreach (var item in listings)
-            {
-                var card = CreateCard(item);
-                pnlListings.Controls.Add(card);
-            }
+                pnlListings.Controls.Add(CreateCard(item));
+
             if (listings.Count == 0)
-            {
-                var lblEmpty = new Label
-                {
-                    Text = "Ничего не найдено",
-                    Font = new Font("Segoe UI", 14),
-                    ForeColor = Color.Gray,
-                    AutoSize = true
-                };
-                pnlListings.Controls.Add(lblEmpty);
-            }
+                pnlListings.Controls.Add(new Label { Text = "📭 Нет объявлений", Font = new Font("Segoe UI", 14), ForeColor = MutedColor, AutoSize = true, Margin = new Padding(10, 60, 0, 0) });
         }
 
-        private void DisplayClosedListings(List<Dictionary<string, object>> listings)
-        {
-            pnlClosedListings.Controls.Clear();
-            if (_showClosed && listings.Any())
-            {
-                foreach (var item in listings)
-                {
-                    var card = CreateCard(item);
-                    pnlClosedListings.Controls.Add(card);
-                }
-                pnlClosedListings.Visible = true;
-                pnlClosedListings.Height = 400;
-            }
-            else
-            {
-                pnlClosedListings.Visible = false;
-                pnlClosedListings.Height = 0;
-            }
-            string countText = listings.Any() ? $" ({listings.Count})" : "";
-            btnToggleClosed.Text = _showClosed ? $"▼ Скрыть закрытые объявления{countText}" : $"▶ Показать закрытые объявления{countText}";
-        }
-
-        private void DisplayHiddenListings(List<Dictionary<string, object>> listings)
-        {
-            pnlHiddenListings.Controls.Clear();
-            if (_showHidden && listings.Any())
-            {
-                foreach (var item in listings)
-                {
-                    var card = CreateCard(item);
-                    pnlHiddenListings.Controls.Add(card);
-                }
-                pnlHiddenListings.Visible = true;
-                pnlHiddenListings.Height = 400;
-            }
-            else
-            {
-                pnlHiddenListings.Visible = false;
-                pnlHiddenListings.Height = 0;
-            }
-            string countText = listings.Any() ? $" ({listings.Count})" : "";
-            btnToggleHidden.Text = _showHidden ? $"▼ Скрыть скрытые объявления{countText}" : $"▶ Показать скрытые объявления{countText}";
-        }
-
-        private void ToggleClosedListings()
-        {
-            _showClosed = !_showClosed;
-            FilterListings();
-        }
-
-        private void ToggleHiddenListings()
-        {
-            _showHidden = !_showHidden;
-            FilterListings();
-        }
-
-        private async Task ToggleFavorite(string listingId, Button starButton)
+        private async Task ToggleFavorite(string listingId)
         {
             try
             {
-                var client = await SupabaseService.GetClient();
-                var userId = client.Auth.CurrentUser?.Id;
                 using var httpClient = new HttpClient();
                 httpClient.DefaultRequestHeaders.Add("apikey", SupabaseService.SupabaseKey);
                 httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {SupabaseService.SupabaseKey}");
 
-                if (starButton.Text == "☆")
+                if (_favorites.Contains(listingId))
                 {
-                    var data = new { user_id = userId, listing_id = listingId };
-                    var json = JsonConvert.SerializeObject(data);
-                    var content = new StringContent(json, Encoding.UTF8, "application/json");
-                    var url = "https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/favorites";
-                    var response = await httpClient.PostAsync(url, content);
-                    if (response.IsSuccessStatusCode)
-                    {
-                        starButton.Text = "★";
-                        _favorites.Add(listingId);
-                        FilterListings();
-                    }
+                    var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/favorites?user_id=eq.{_currentUserId}&listing_id=eq.{listingId}";
+                    await httpClient.DeleteAsync(url);
+                    _favorites.Remove(listingId);
                 }
                 else
                 {
-                    var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/favorites?user_id=eq.{userId}&listing_id=eq.{listingId}";
-                    var response = await httpClient.DeleteAsync(url);
-                    if (response.IsSuccessStatusCode)
-                    {
-                        starButton.Text = "☆";
-                        _favorites.Remove(listingId);
-                        FilterListings();
-                    }
+                    var data = new { user_id = _currentUserId, listing_id = listingId };
+                    var json = JsonConvert.SerializeObject(data);
+                    var content = new StringContent(json, Encoding.UTF8, "application/json");
+                    await httpClient.PostAsync("https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/favorites", content);
+                    _favorites.Add(listingId);
                 }
+                await LoadFavorites();
+                FilterListings();
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Ошибка: {ex.Message}");
-            }
+            catch (Exception ex) { MessageBox.Show($"Ошибка: {ex.Message}"); }
         }
 
-        private async Task HideListing(string listingId, Button starButton)
-        {
-            if (_hiddenListings.Contains(listingId))
-                await ToggleHidden(listingId, starButton);
-            else
-                await ToggleHidden(listingId, starButton);
-        }
-
-        private async Task ToggleHidden(string listingId, Button starButton)
+        private async Task ToggleHidden(string listingId)
         {
             try
             {
-                var client = await SupabaseService.GetClient();
-                var userId = client.Auth.CurrentUser?.Id;
                 using var httpClient = new HttpClient();
                 httpClient.DefaultRequestHeaders.Add("apikey", SupabaseService.SupabaseKey);
-                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {SupabaseService.SupabaseKey});
+                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {SupabaseService.SupabaseKey}");
 
                 if (_hiddenListings.Contains(listingId))
                 {
-                    var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/hidden_listings?user_id=eq.{userId}&listing_id=eq.{listingId}";
+                    var url = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/hidden_listings?user_id=eq.{_currentUserId}&listing_id=eq.{listingId}";
                     await httpClient.DeleteAsync(url);
                     _hiddenListings.Remove(listingId);
                 }
                 else
                 {
-                    var data = new { user_id = userId, listing_id = listingId };
+                    var data = new { user_id = _currentUserId, listing_id = listingId };
                     var json = JsonConvert.SerializeObject(data);
                     var content = new StringContent(json, Encoding.UTF8, "application/json");
-                    var url = "https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/hidden_listings";
-                    await httpClient.PostAsync(url, content);
+                    await httpClient.PostAsync("https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/hidden_listings", content);
                     _hiddenListings.Add(listingId);
                 }
+                await LoadHiddenListings();
                 FilterListings();
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Ошибка: {ex.Message}");
-            }
+            catch (Exception ex) { MessageBox.Show($"Ошибка: {ex.Message}"); }
         }
 
         private async Task ReportListing(string listingId)
         {
-            // Проверка, не жаловался ли уже
-            using var client = new HttpClient();
-            var checkUrl = $"https://htusuxsjxxsudzxwjnvt.supabase.co/rest/v1/reports?listing_id=eq.{listingId}&user_id=eq.{SupabaseService.GetClient().Result.Auth.CurrentUser?.Id}&select=id";
-            client.DefaultRequestHeaders.Add("apikey", SupabaseService.SupabaseKey);
-            client.DefaultRequestHeaders.Add("Authorization", $"Bearer {SupabaseService.SupabaseKey}");
-            var checkResponse = await client.GetStringAsync(checkUrl);
-            var existing = JsonConvert.DeserializeObject<List<object>>(checkResponse);
-            if (existing != null && existing.Count > 0)
+            using var dialog = new ReportDialog(listingId);
+            dialog.ShowDialog();
+        }
+
+        private void StartBlinking()
+        {
+            if (blinkTimer == null)
             {
-                MessageBox.Show("Вы уже отправляли жалобу на это объявление.", "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
+                blinkTimer = new System.Windows.Forms.Timer { Interval = 500 };
+                blinkTimer.Tick += (s, e) =>
+                {
+                    isBlinking = !isBlinking;
+                    if (btnNotifications != null)
+                    {
+                        btnNotifications.BackColor = isBlinking ? WarningColor : PrimaryColor;
+                    }
+                    if (btnChats != null)
+                    {
+                        btnChats.BackColor = isBlinking ? WarningColor : PrimaryColor;
+                    }
+                };
+            }
+            blinkTimer.Start();
+            isBlinking = true;
+        }
+
+        private void StopBlinking()
+        {
+            if (blinkTimer != null)
+            {
+                blinkTimer.Stop();
+                isBlinking = false;
+            }
+            if (btnNotifications != null) btnNotifications.BackColor = PrimaryColor;
+            if (btnChats != null) btnChats.BackColor = PrimaryColor;
+        }
+
+        private void UpdateBadges()
+        {
+            if (pnlNotificationBadge != null)
+            {
+                pnlNotificationBadge.Visible = _unreadNotifications > 0;
+                if (pnlNotificationBadge.Controls[0] is Label lbl)
+                    lbl.Text = _unreadNotifications > 9 ? "9+" : _unreadNotifications.ToString();
             }
 
-            using var reportDialog = new ReportDialog(listingId);
-            reportDialog.ShowDialog();
+            if (pnlChatBadge != null)
+            {
+                pnlChatBadge.Visible = _unreadChats > 0;
+                if (pnlChatBadge.Controls[0] is Label lbl)
+                    lbl.Text = _unreadChats > 9 ? "9+" : _unreadChats.ToString();
+            }
+        }
+
+        private async Task UpdateNotificationsBadge()
+        {
+            try
+            {
+                var client = await SupabaseService.GetClient();
+                var userId = client.Auth.CurrentUser?.Id;
+                var unread = await SupabaseService.GetUnreadNotifications(userId);
+                _unreadNotifications = unread.Count;
+                _unreadChats = 0;
+
+                UpdateBadges();
+
+                if ((_unreadNotifications > 0 || _unreadChats > 0) && !isBlinking)
+                {
+                    StartBlinking();
+                }
+                else if (_unreadNotifications == 0 && _unreadChats == 0 && isBlinking)
+                {
+                    StopBlinking();
+                }
+            }
+            catch { }
+        }
+
+        private async void BtnLocation_Click(object sender, EventArgs e)
+        {
+            if (!_hasUserLocation)
+            {
+                var result = MessageBox.Show(
+                    "📍 Определить ваше местоположение?\n\n" +
+                    "Это нужно для сортировки объявлений по расстоянию.",
+                    "Геолокация",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+
+                if (result == DialogResult.Yes)
+                {
+                    btnLocation.Enabled = false;
+                    btnLocation.Text = "⏳ Определение...";
+                    await GetLocationByIPAsync();
+                    btnLocation.Enabled = true;
+                }
+            }
+            else
+            {
+                MessageBox.Show($"📍 Ваше местоположение:\n\n🌐 Координаты: {_userLat:F4}, {_userLon:F4}",
+                                "Моё местоположение", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        private async Task GetLocationByIPAsync()
+        {
+            try
+            {
+                using var client = new HttpClient();
+                client.Timeout = TimeSpan.FromSeconds(10);
+                var response = await client.GetStringAsync("http://ip-api.com/json/");
+                dynamic data = JsonConvert.DeserializeObject(response);
+
+                if (data.status == "success")
+                {
+                    _userLat = data.lat;
+                    _userLon = data.lon;
+                    _hasUserLocation = true;
+
+                    string city = data.city ?? "";
+                    string region = data.regionName ?? "";
+                    string country = data.country ?? "";
+                    string address = $"{country}, {region}, {city}".Trim(' ', ',');
+
+                    Properties.Settings.Default.UserLat = _userLat;
+                    Properties.Settings.Default.UserLon = _userLon;
+                    Properties.Settings.Default.HasLocation = true;
+                    Properties.Settings.Default.UserAddress = address;
+                    Properties.Settings.Default.Save();
+
+                    if (lblLocationText != null)
+                    {
+                        lblLocationText.Text = address;
+                        lblLocationText.Visible = !string.IsNullOrEmpty(address);
+                    }
+
+                    btnLocation.Text = "📍 Местоположение определено";
+
+                    string message = $"✅ Местоположение определено!\n\n🌐 Координаты: {_userLat:F4}, {_userLon:F4}";
+                    if (!string.IsNullOrEmpty(address))
+                        message += $"\n\n📍 {address}";
+
+                    MessageBox.Show(message, "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    FilterListings();
+                }
+                else
+                {
+                    MessageBox.Show("❌ Не удалось определить местоположение.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    btnLocation.Text = "📍 Моё местоположение";
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"❌ Ошибка: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                btnLocation.Text = "📍 Моё местоположение";
+            }
         }
 
         private Panel CreateCard(Dictionary<string, object> item)
         {
-            var card = new Panel
-            {
-                Width = 320,
-                Height = 380,
-                BackColor = Color.White,
-                Margin = new Padding(12),
-                Cursor = Cursors.Hand,
-                BorderStyle = BorderStyle.None
-            };
-            card.Paint += (s, e) => ControlPaint.DrawBorder(e.Graphics, card.ClientRectangle,
-                Color.LightGray, 1, ButtonBorderStyle.Solid,
-                Color.LightGray, 1, ButtonBorderStyle.Solid,
-                Color.LightGray, 1, ButtonBorderStyle.Solid,
-                Color.LightGray, 1, ButtonBorderStyle.Solid);
+            int availableWidth = this.ClientSize.Width - 80;
+            int cardWidth = (availableWidth / _cardsPerRow) - 30;
+            cardWidth = Math.Min(cardWidth, 420);
+            cardWidth = Math.Max(cardWidth, 280);
+            int cardHeight = 420;
 
-            // Фото
+            var card = new Panel { Width = cardWidth, Height = cardHeight, BackColor = CardColor, Margin = new Padding(12), Cursor = Cursors.Hand };
+            card.Paint += (s, e) =>
+            {
+                using var pen = new Pen(BorderColor, 1);
+                e.Graphics.DrawRectangle(pen, 0, 0, card.Width - 1, card.Height - 1);
+            };
+
             string photoUrl = GetPhotoUrl(item);
-            var photo = new PictureBox
-            {
-                Width = 318,
-                Height = 200,
-                SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor = Color.FromArgb(240, 242, 245),
-                Location = new Point(1, 1)
-            };
-            if (!string.IsNullOrEmpty(photoUrl) && System.IO.File.Exists(Path.Combine(Application.StartupPath, photoUrl)))
-            {
-                try { photo.Image = Image.FromFile(Path.Combine(Application.StartupPath, photoUrl)); }
-                catch { }
-            }
+            var photo = new PictureBox { Width = cardWidth - 2, Height = 230, SizeMode = PictureBoxSizeMode.Zoom, BackColor = BackgroundColor, Location = new Point(1, 1), Cursor = Cursors.Hand };
+            if (!string.IsNullOrEmpty(photoUrl) && File.Exists(Path.Combine(Application.StartupPath, photoUrl)))
+                try { photo.Image = Image.FromFile(Path.Combine(Application.StartupPath, photoUrl)); } catch { }
 
-            // Бейджи статуса
             string listingType = GetString(item, "listing_type");
             string status = GetString(item, "status");
-            Color typeColor = listingType == "lost" ? Color.FromArgb(220, 53, 69) : Color.FromArgb(40, 167, 69);
-            string typeText = listingType == "lost" ? "ПРОПАЛ" : "НАЙДЕН";
 
-            var typeBadge = new Panel
-            {
-                Width = 70,
-                Height = 24,
-                BackColor = typeColor,
-                Location = new Point(8, 8)
-            };
-            var typeLabel = new Label
-            {
-                Text = typeText,
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                TextAlign = ContentAlignment.MiddleCenter,
-                Dock = DockStyle.Fill
-            };
-            typeBadge.Controls.Add(typeLabel);
+            var typeBadge = new Panel { Width = 85, Height = 28, BackColor = listingType == "lost" ? DangerColor : SuccessColor, Location = new Point(10, 10) };
+            typeBadge.Controls.Add(new Label { Text = listingType == "lost" ? "ПРОПАЛ" : "НАЙДЕН", ForeColor = Color.White, Font = new Font("Segoe UI", 8, FontStyle.Bold), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter });
 
-            Color statusColor = status == "on_moderation" ? Color.FromArgb(255, 193, 7) : (status == "active" ? Color.FromArgb(40, 167, 69) : Color.FromArgb(108, 117, 125));
-            string statusText = status == "on_moderation" ? "НА ПРОВЕРКЕ" : (status == "active" ? "АКТИВЕН" : (status == "closed" ? "ЗАКРЫТ" : "ПРОСРОЧЕН"));
-            var statusBadge = new Panel
-            {
-                Width = 90,
-                Height = 24,
-                BackColor = statusColor,
-                Location = new Point(85, 8)
-            };
-            var statusLabel = new Label
-            {
-                Text = statusText,
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                TextAlign = ContentAlignment.MiddleCenter,
-                Dock = DockStyle.Fill
-            };
-            statusBadge.Controls.Add(statusLabel);
+            var statusBadge = new Panel { Width = 105, Height = 28, BackColor = status == "on_moderation" ? WarningColor : (status == "active" ? SuccessColor : MutedColor), Location = new Point(100, 10) };
+            statusBadge.Controls.Add(new Label { Text = status == "on_moderation" ? "ПРОВЕРКА" : (status == "active" ? "АКТИВЕН" : "ЗАКРЫТ"), ForeColor = Color.White, Font = new Font("Segoe UI", 8, FontStyle.Bold), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter });
+
             photo.Controls.Add(typeBadge);
             photo.Controls.Add(statusBadge);
 
-            // Кнопки: звезда (избранное) и три точки (меню)
             string listingId = GetString(item, "id");
-            bool isFavorite = _favorites.Contains(listingId);
-            var starButton = new Button
-            {
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.Transparent,
-                ForeColor = Color.Gold,
-                Font = new Font("Segoe UI", 16),
-                Text = isFavorite ? "★" : "☆",
-                Size = new Size(32, 32),
-                Location = new Point(270, 8),
-                Cursor = Cursors.Hand,
-                Tag = listingId
-            };
-            starButton.FlatAppearance.BorderSize = 0;
-            starButton.Click += async (s, e) => await ToggleFavorite(listingId, starButton);
-
-            var menuButton = new Button
-            {
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.Transparent,
-                ForeColor = Color.Gray,
-                Font = new Font("Segoe UI", 12),
-                Text = "⋯",
-                Size = new Size(32, 32),
-                Location = new Point(235, 8),
-                Cursor = Cursors.Hand,
-                Tag = listingId
-            };
-            menuButton.FlatAppearance.BorderSize = 0;
-            menuButton.Click += (s, e) =>
+            bool isFav = _favorites.Contains(listingId);
+            var menuBtn = new Button { FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent, ForeColor = MutedColor, Font = new Font("Segoe UI", 16), Text = "⋯", Size = new Size(36, 36), Location = new Point(cardWidth - 50, 8), Cursor = Cursors.Hand };
+            menuBtn.FlatAppearance.BorderSize = 0;
+            menuBtn.Click += (s, e) =>
             {
                 var menu = new ContextMenuStrip();
-                // Отслеживание
-                var favoriteItem = new ToolStripMenuItem(isFavorite ? "Убрать из отслеживаемых" : "Отслеживать");
-                favoriteItem.Click += async (ev, arg) => await ToggleFavorite(listingId, starButton);
-                menu.Items.Add(favoriteItem);
-                // Скрыть / Показать
-                bool isHidden = _hiddenListings.Contains(listingId);
-                var hideItem = new ToolStripMenuItem(isHidden ? "Восстановить из скрытых" : "Скрыть");
-                hideItem.Click += async (ev, arg) => await ToggleHidden(listingId, starButton);
-                menu.Items.Add(hideItem);
-                // Пожаловаться (только не на своё объявление)
-                string authorId = GetString(item, "user_id");
-                if (authorId != SupabaseService.GetClient().Result.Auth.CurrentUser?.Id)
-                {
-                    var reportItem = new ToolStripMenuItem("Пожаловаться");
-                    reportItem.Click += async (ev, arg) => await ReportListing(listingId);
-                    menu.Items.Add(reportItem);
-                }
-                menu.Show(menuButton, new Point(0, menuButton.Height));
+                menu.Items.Add(new ToolStripMenuItem(isFav ? "⭐ Убрать из отслеживаемых" : "☆ Отслеживать", null, async (_, _) => await ToggleFavorite(listingId)));
+                menu.Items.Add(new ToolStripMenuItem(_hiddenListings.Contains(listingId) ? "👁️ Восстановить" : "🙈 Скрыть", null, async (_, _) => await ToggleHidden(listingId)));
+                if (GetString(item, "user_id") != _currentUserId)
+                    menu.Items.Add(new ToolStripMenuItem("⚠️ Пожаловаться", null, async (_, _) => await ReportListing(listingId)));
+                menu.Show(menuBtn, new Point(0, menuBtn.Height));
             };
+            photo.Controls.Add(menuBtn);
 
-            photo.Controls.Add(starButton);
-            photo.Controls.Add(menuButton);
-
-            // Текстовая информация
-            string petName = GetString(item, "pet_name");
-            string breed = GetString(item, "breed");
-            string species = GetString(item, "species");
-            string gender = GetString(item, "gender");
-            string genderSymbol = gender == "male" ? "♂" : (gender == "female" ? "♀" : "⚲");
+            string petName = GetString(item, "pet_name"), breed = GetString(item, "breed"), species = GetString(item, "species");
+            string gender = GetString(item, "gender") == "male" ? "♂" : (GetString(item, "gender") == "female" ? "♀" : "⚲");
             int? ageMonths = GetInt(item, "age");
             string ageStr = ageMonths.HasValue ? FormatAge(ageMonths.Value) : "возраст не указан";
-            string size = GetString(item, "size");
-            string sizeDisplay = size switch { "small" => "маленький", "medium" => "средний", "large" => "большой", _ => size };
+            string size = GetString(item, "size") switch { "small" => "маленький", "medium" => "средний", "large" => "большой", _ => GetString(item, "size") };
             string color = GetString(item, "color");
-            DateTime? incidentDate = GetDate(item, "incident_date");
             string incidentLabel = listingType == "lost" ? "пропажа:" : "находка:";
-            string incidentStr = incidentDate.HasValue ? incidentDate.Value.ToString("dd.MM.yyyy") : "дата не указана";
+            string incidentStr = GetDate(item, "incident_date")?.ToString("dd.MM.yyyy") ?? "дата не указана";
             string location = GetString(item, "location");
-            DateTime? createdDate = GetDate(item, "created_at");
-            string createdStr = createdDate.HasValue ? createdDate.Value.ToString("dd.MM.yyyy") : "";
+            string createdStr = GetDate(item, "created_at")?.ToString("dd.MM.yyyy") ?? "";
             bool isAnimalVerified = GetString(item, "is_animal_verified") == "True";
 
-            int textY = 215;
-            var nameLabel = new Label
-            {
-                Text = $"{breed} {petName}".Trim(),
-                Font = new Font("Segoe UI", 12, FontStyle.Bold),
-                ForeColor = Color.FromArgb(0, 122, 204),
-                Location = new Point(12, textY),
-                AutoSize = true
-            };
-            textY += 22;
-            var infoLabel = new Label
-            {
-                Text = $"{species} • {genderSymbol} • {ageStr}",
-                Font = new Font("Segoe UI", 9),
-                ForeColor = Color.Gray,
-                Location = new Point(12, textY),
-                AutoSize = true
-            };
-            textY += 18;
-            var detailsLabel = new Label
-            {
-                Text = string.IsNullOrEmpty(color) ? sizeDisplay : $"{sizeDisplay} • {color}",
-                Font = new Font("Segoe UI", 9),
-                ForeColor = Color.Gray,
-                Location = new Point(12, textY),
-                AutoSize = true
-            };
-            textY += 18;
-            var incidentLabelCtrl = new Label
-            {
-                Text = $"{incidentLabel} {incidentStr}",
-                Font = new Font("Segoe UI", 9),
-                ForeColor = Color.Gray,
-                Location = new Point(12, textY),
-                AutoSize = true
-            };
-            textY += 18;
-            var locationLabel = new Label
-            {
-                Text = location,
-                Font = new Font("Segoe UI", 9),
-                ForeColor = Color.FromArgb(80, 80, 80),
-                Location = new Point(12, textY),
-                AutoSize = true,
-                MaximumSize = new Size(280, 0)
-            };
-            int dateY = textY + 22;
-            var dateLabel = new Label
-            {
-                Text = $"создано: {createdStr}",
-                Font = new Font("Segoe UI", 8),
-                ForeColor = Color.Gray,
-                AutoSize = true,
-                Location = new Point(12, dateY)
-            };
+            int y = 245;
+            var nameLabel = new Label { Text = $"{breed} {petName}".Trim(), Font = new Font("Segoe UI", 13, FontStyle.Bold), ForeColor = PrimaryColor, Location = new Point(15, y), AutoSize = true, Cursor = Cursors.Hand };
+            y += 28;
+
+            var infoLabel = new Label { Text = $"{species} • {gender} • {ageStr}", Font = new Font("Segoe UI", 9), ForeColor = MutedColor, Location = new Point(15, y), AutoSize = true, Cursor = Cursors.Hand };
+            y += 24;
+
+            var detailsLabel = new Label { Text = string.IsNullOrEmpty(color) ? size : $"{size} • {color}", Font = new Font("Segoe UI", 9), ForeColor = MutedColor, Location = new Point(15, y), AutoSize = true, Cursor = Cursors.Hand };
+            y += 24;
+
+            var incidentLabelCtrl = new Label { Text = $"{incidentLabel} {incidentStr}", Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = TextColor, Location = new Point(15, y), AutoSize = true, Cursor = Cursors.Hand };
+            y += 24;
+
+            var locationLabel = new Label { Text = $"📍 {location}", Font = new Font("Segoe UI", 9), ForeColor = TextColor, Location = new Point(15, y), AutoSize = true, MaximumSize = new Size(cardWidth - 40, 0), Cursor = Cursors.Hand };
+
+            int dateY = y + 28;
+            var dateLabel = new Label { Text = $"создано: {createdStr}", Font = new Font("Segoe UI", 8), ForeColor = MutedColor, AutoSize = true, Location = new Point(15, dateY), Cursor = Cursors.Hand };
 
             if (isAnimalVerified)
-            {
-                var verifiedIcon = new Label
-                {
-                    Text = "✓ Верифицирован",
-                    Font = new Font("Segoe UI", 8, FontStyle.Bold),
-                    ForeColor = Color.FromArgb(40, 167, 69),
-                    AutoSize = true,
-                    Location = new Point(200, dateY)
-                };
-                card.Controls.Add(verifiedIcon);
-            }
+                card.Controls.Add(new Label { Text = "✓ Верифицирован", Font = new Font("Segoe UI", 8, FontStyle.Bold), ForeColor = SuccessColor, AutoSize = true, Location = new Point(cardWidth - 130, dateY) });
+
+            photo.Click += (s, e) => ShowDetail(item);
+            nameLabel.Click += (s, e) => ShowDetail(item);
+            infoLabel.Click += (s, e) => ShowDetail(item);
+            detailsLabel.Click += (s, e) => ShowDetail(item);
+            incidentLabelCtrl.Click += (s, e) => ShowDetail(item);
+            locationLabel.Click += (s, e) => ShowDetail(item);
+            dateLabel.Click += (s, e) => ShowDetail(item);
+            card.Click += (s, e) => ShowDetail(item);
 
             card.Controls.Add(photo);
             card.Controls.Add(nameLabel);
@@ -906,8 +635,420 @@ namespace AnimalFinderDesktop.Forms
             card.Controls.Add(locationLabel);
             card.Controls.Add(dateLabel);
 
-            card.Click += (s, e) => ShowDetail(item);
+            card.MouseEnter += (s, e) => card.BackColor = Color.FromArgb(250, 252, 254);
+            card.MouseLeave += (s, e) => card.BackColor = CardColor;
+
             return card;
+        }
+
+        private void ShowDetail(Dictionary<string, object> item)
+        {
+            using var detailForm = new DetailForm(item);
+            detailForm.ShowDialog();
+            _ = LoadAllData();
+        }
+
+        private void SetupUI()
+        {
+            var headerPanel = new Panel { Dock = DockStyle.Top, Height = 60, BackColor = Color.White };
+
+            var lblLogo = new Label
+            {
+                Text = "🐾 AnimalFinder",
+                Font = new Font("Segoe UI", 18, FontStyle.Bold),
+                ForeColor = PrimaryColor,
+                Location = new Point(30, 15),
+                AutoSize = true
+            };
+
+            lblGreeting = new Label
+            {
+                Text = $"Здравствуйте, {_currentUserName}!",
+                Font = new Font("Segoe UI", 13),
+                ForeColor = TextColor,
+                Location = new Point(250, 18),
+                AutoSize = true
+            };
+
+            btnProfile = CreateModernButton("👤 Профиль", PrimaryColor, new Size(110, 36));
+            btnProfile.Location = new Point(1050, 12);
+            btnProfile.Click += async (s, e) => { using var profileForm = new ProfileForm(); profileForm.ShowDialog(); await LoadAllData(); };
+
+            var notifPanel = new Panel { Location = new Point(1170, 12), Size = new Size(40, 36) };
+            btnNotifications = new Button
+            {
+                Text = "🔔",
+                Size = new Size(40, 36),
+                BackColor = PrimaryColor,
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Dock = DockStyle.Fill,
+                Cursor = Cursors.Hand,
+                Font = new Font("Segoe UI", 14)
+            };
+            btnNotifications.FlatAppearance.BorderSize = 0;
+            btnNotifications.Click += async (s, e) => { using var notifForm = new NotificationsForm(); notifForm.ShowDialog(); await UpdateNotificationsBadge(); };
+
+            pnlNotificationBadge = new Panel
+            {
+                BackColor = DangerColor,
+                Size = new Size(18, 18),
+                Location = new Point(24, 0),
+                Cursor = Cursors.Hand
+            };
+
+            var lblNotifCount = new Label
+            {
+                Text = "",
+                Font = new Font("Segoe UI", 7, FontStyle.Bold),
+                ForeColor = Color.White,
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter,
+                AutoSize = false
+            };
+            pnlNotificationBadge.Controls.Add(lblNotifCount);
+            pnlNotificationBadge.Visible = false;
+
+            notifPanel.Controls.Add(btnNotifications);
+            notifPanel.Controls.Add(pnlNotificationBadge);
+
+            var chatPanel = new Panel { Location = new Point(1220, 12), Size = new Size(40, 36) };
+            btnChats = new Button
+            {
+                Text = "💬",
+                Size = new Size(40, 36),
+                BackColor = PrimaryColor,
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Dock = DockStyle.Fill,
+                Cursor = Cursors.Hand,
+                Font = new Font("Segoe UI", 14)
+            };
+            btnChats.FlatAppearance.BorderSize = 0;
+            btnChats.Click += async (s, e) => { using var chatsForm = new ChatsListForm(); chatsForm.ShowDialog(); await UpdateNotificationsBadge(); };
+
+            pnlChatBadge = new Panel
+            {
+                BackColor = DangerColor,
+                Size = new Size(18, 18),
+                Location = new Point(24, 0),
+                Cursor = Cursors.Hand
+            };
+
+            var lblChatCount = new Label
+            {
+                Text = "",
+                Font = new Font("Segoe UI", 7, FontStyle.Bold),
+                ForeColor = Color.White,
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter,
+                AutoSize = false
+            };
+            pnlChatBadge.Controls.Add(lblChatCount);
+            pnlChatBadge.Visible = false;
+
+            chatPanel.Controls.Add(btnChats);
+            chatPanel.Controls.Add(pnlChatBadge);
+
+            headerPanel.Controls.Add(lblLogo);
+            headerPanel.Controls.Add(lblGreeting);
+            headerPanel.Controls.Add(btnProfile);
+            headerPanel.Controls.Add(notifPanel);
+            headerPanel.Controls.Add(chatPanel);
+
+            var filterPanel = new Panel { Dock = DockStyle.Top, Height = 140, BackColor = Color.White };
+
+            txtSearch = new TextBox
+            {
+                Width = 200,
+                Font = new Font("Segoe UI", 10),
+                PlaceholderText = "🔍 Поиск...",
+                Location = new Point(25, 10)
+            };
+            txtSearch.TextChanged += (s, e) => FilterListings();
+
+            cbTypeFilter = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Width = 130,
+                Font = new Font("Segoe UI", 10),
+                Location = new Point(245, 10)
+            };
+            cbTypeFilter.Items.AddRange(new[] { "Все типы", "Пропал", "Найден" });
+            cbTypeFilter.SelectedIndex = 0;
+            cbTypeFilter.SelectedIndexChanged += (s, e) => FilterListings();
+
+            cbSpeciesFilter = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Width = 130,
+                Font = new Font("Segoe UI", 10),
+                Location = new Point(395, 10)
+            };
+            cbSpeciesFilter.Items.AddRange(new[] { "Все виды", "Собака", "Кошка", "Грызун", "Птица", "Другое" });
+            cbSpeciesFilter.SelectedIndex = 0;
+            cbSpeciesFilter.SelectedIndexChanged += (s, e) => FilterListings();
+
+            btnTemperamentFilter = new Button
+            {
+                Text = "🎭 Все",
+                Width = 120,
+                Height = 32,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = BackgroundColor,
+                Location = new Point(545, 10)
+            };
+            btnTemperamentFilter.Click += BtnTemperamentFilter_Click;
+
+            cbStatusFilter = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Width = 130,
+                Font = new Font("Segoe UI", 10),
+                Location = new Point(685, 10)
+            };
+            cbStatusFilter.Items.AddRange(new[] { "Все статусы", "Активные", "На проверке" });
+            cbStatusFilter.SelectedIndex = 0;
+            cbStatusFilter.SelectedIndexChanged += (s, e) => FilterListings();
+
+            cbViewFilter = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Width = 160,
+                Font = new Font("Segoe UI", 10),
+                Location = new Point(835, 10)
+            };
+            cbViewFilter.Items.AddRange(new[] { "Все объявления", "Отслеживаемые", "Закрытые", "Скрытые" });
+            cbViewFilter.SelectedIndex = 0;
+            cbViewFilter.SelectedIndexChanged += (s, e) => FilterListings();
+
+            btnAddListing = CreateModernButton("➕ Добавить", SuccessColor, new Size(150, 36));
+            btnAddListing.Location = new Point(1015, 8);
+            btnAddListing.Click += async (s, e) => { using var addForm = new AddListingForm(); if (addForm.ShowDialog() == DialogResult.OK) await LoadAllData(); };
+
+            btnReportsModeration = CreateModernButton("⚠️ Жалобы", WarningColor, new Size(110, 36));
+            btnReportsModeration.Location = new Point(1175, 8);
+            btnReportsModeration.Visible = false;
+            btnReportsModeration.Click += (s, e) => { using var reportsForm = new ModerationReportsForm(); reportsForm.ShowDialog(); };
+
+            btnLocation = CreateModernButton("📍 Моё местоположение", PrimaryColor, new Size(200, 32));
+            btnLocation.Location = new Point(25, 55);
+            btnLocation.Click += BtnLocation_Click;
+
+            lblLocationText = new Label
+            {
+                Text = "",
+                Font = new Font("Segoe UI", 8),
+                ForeColor = MutedColor,
+                Location = new Point(25, 92),
+                AutoSize = false,
+                Size = new Size(450, 20),
+                Visible = false,
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+
+            var lblSort = new Label
+            {
+                Text = "Сортировка:",
+                Location = new Point(245, 60),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = TextColor
+            };
+
+            rbNearest = new RadioButton
+            {
+                Text = "Ближайшие",
+                Location = new Point(325, 57),
+                AutoSize = true,
+                Checked = true,
+                Font = new Font("Segoe UI", 9)
+            };
+
+            rbFarthest = new RadioButton
+            {
+                Text = "Дальние",
+                Location = new Point(415, 57),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9)
+            };
+
+            rbNewest = new RadioButton
+            {
+                Text = "Новые",
+                Location = new Point(495, 57),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9)
+            };
+
+            rbNearest.CheckedChanged += (s, e) => { if (rbNearest.Checked) _sortMode = "nearest"; FilterListings(); };
+            rbFarthest.CheckedChanged += (s, e) => { if (rbFarthest.Checked) _sortMode = "farthest"; FilterListings(); };
+            rbNewest.CheckedChanged += (s, e) => { if (rbNewest.Checked) _sortMode = "newest"; FilterListings(); };
+
+            var lblRadius = new Label
+            {
+                Text = "Радиус:",
+                Location = new Point(585, 60),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = TextColor
+            };
+
+            cbRadiusFilter = new ComboBox
+            {
+                Width = 90,
+                Location = new Point(640, 57),
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Font = new Font("Segoe UI", 9)
+            };
+            cbRadiusFilter.Items.AddRange(new object[] { "Все", "1 км", "5 км", "10 км", "20 км", "50 км", "100 км" });
+            cbRadiusFilter.SelectedIndex = 0;
+            cbRadiusFilter.SelectedIndexChanged += (s, e) => FilterListings();
+
+            var lblCards = new Label
+            {
+                Text = "В ряд:",
+                Location = new Point(745, 60),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = TextColor
+            };
+
+            cbCardWidth = new ComboBox
+            {
+                Width = 60,
+                Location = new Point(795, 57),
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Font = new Font("Segoe UI", 9)
+            };
+            cbCardWidth.Items.AddRange(new object[] { "3", "4" });
+            cbCardWidth.SelectedIndex = 1;
+            cbCardWidth.SelectedIndexChanged += (s, e) => { _cardsPerRow = int.Parse(cbCardWidth.SelectedItem.ToString()); AdjustCardWidth(); FilterListings(); };
+
+            lblStatus = new Label
+            {
+                Text = "Загрузка...",
+                ForeColor = MutedColor,
+                Font = new Font("Segoe UI", 9),
+                AutoSize = true,
+                Location = new Point(875, 60)
+            };
+
+            filterPanel.Controls.Add(txtSearch);
+            filterPanel.Controls.Add(cbTypeFilter);
+            filterPanel.Controls.Add(cbSpeciesFilter);
+            filterPanel.Controls.Add(btnTemperamentFilter);
+            filterPanel.Controls.Add(cbStatusFilter);
+            filterPanel.Controls.Add(cbViewFilter);
+            filterPanel.Controls.Add(btnAddListing);
+            filterPanel.Controls.Add(btnReportsModeration);
+            filterPanel.Controls.Add(btnLocation);
+            filterPanel.Controls.Add(lblLocationText);
+            filterPanel.Controls.Add(lblSort);
+            filterPanel.Controls.Add(rbNearest);
+            filterPanel.Controls.Add(rbFarthest);
+            filterPanel.Controls.Add(rbNewest);
+            filterPanel.Controls.Add(lblRadius);
+            filterPanel.Controls.Add(cbRadiusFilter);
+            filterPanel.Controls.Add(lblCards);
+            filterPanel.Controls.Add(cbCardWidth);
+            filterPanel.Controls.Add(lblStatus);
+
+            var mainContainer = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = BackgroundColor };
+
+            pnlListings = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                AutoScroll = true,
+                Padding = new Padding(20, 5, 20, 20),
+                BackColor = BackgroundColor,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = true
+            };
+
+            mainContainer.Controls.Add(pnlListings);
+
+            this.Controls.Add(mainContainer);
+            this.Controls.Add(filterPanel);
+            this.Controls.Add(headerPanel);
+        }
+
+        private void AdjustCardWidth()
+        {
+            int availableWidth = this.ClientSize.Width - 80;
+            int cardWidth = (availableWidth / _cardsPerRow) - 30;
+
+            cardWidth = Math.Min(cardWidth, 420);
+            cardWidth = Math.Max(cardWidth, 280);
+
+            if (pnlListings != null)
+            {
+                foreach (Control ctrl in pnlListings.Controls)
+                {
+                    if (ctrl is Panel card)
+                    {
+                        card.Width = cardWidth;
+                        foreach (Control child in card.Controls)
+                        {
+                            if (child is PictureBox photo)
+                            {
+                                photo.Width = cardWidth - 2;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private Button CreateModernButton(string text, Color backColor, Size size)
+        {
+            var button = new Button
+            {
+                Text = text,
+                Size = size,
+                BackColor = backColor,
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            button.FlatAppearance.BorderSize = 0;
+            button.FlatAppearance.MouseOverBackColor = ControlPaint.Light(backColor, 0.1f);
+            button.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(backColor, 0.1f);
+            return button;
+        }
+
+        private void BtnTemperamentFilter_Click(object sender, EventArgs e)
+        {
+            var menu = new ContextMenuStrip();
+            foreach (var t in new[] { "Спокойный", "Игривый", "Активный", "Ласковый", "Пугливый", "Дружелюбный", "Независимый", "Агрессивный", "Осторожный" })
+            {
+                var item = new ToolStripMenuItem(t) { Checked = _selectedTemperaments.Contains(t) };
+                item.Click += (_, _) => { if (item.Checked) _selectedTemperaments.Remove(t); else _selectedTemperaments.Add(t); UpdateTemperamentText(); FilterListings(); };
+                menu.Items.Add(item);
+            }
+            menu.Items.Add(new ToolStripSeparator());
+            var clear = new ToolStripMenuItem("Сбросить все");
+            clear.Click += (_, _) => { _selectedTemperaments.Clear(); UpdateTemperamentText(); FilterListings(); };
+            menu.Items.Add(clear);
+            menu.Show(btnTemperamentFilter, new Point(0, btnTemperamentFilter.Height));
+        }
+
+        private void UpdateTemperamentText()
+        {
+            if (_selectedTemperaments.Count == 0)
+                btnTemperamentFilter.Text = "🎭 Все";
+            else if (_selectedTemperaments.Count == 1)
+                btnTemperamentFilter.Text = $"🎭 {_selectedTemperaments[0]}";
+            else
+                btnTemperamentFilter.Text = $"🎭 {_selectedTemperaments.Count}";
+        }
+
+        private void StartAutoRefresh()
+        {
+            autoRefreshTimer = new System.Windows.Forms.Timer { Interval = 60000 };
+            autoRefreshTimer.Tick += async (s, e) => await LoadAllData();
+            autoRefreshTimer.Start();
         }
 
         private string GetPhotoUrl(Dictionary<string, object> dict)
@@ -916,7 +1057,7 @@ namespace AnimalFinderDesktop.Forms
             if (!string.IsNullOrEmpty(photoUrls))
             {
                 string first = photoUrls.Split(';')[0];
-                if (System.IO.File.Exists(Path.Combine(Application.StartupPath, first)))
+                if (File.Exists(Path.Combine(Application.StartupPath, first)))
                     return first;
                 return first;
             }
@@ -973,11 +1114,10 @@ namespace AnimalFinderDesktop.Forms
             return "месяцев";
         }
 
-        private void ShowDetail(Dictionary<string, object> item)
+        protected override void OnResize(EventArgs e)
         {
-            var detailForm = new DetailForm(item);
-            detailForm.ShowDialog();
-            _ = LoadListingsAsync();
+            base.OnResize(e);
+            AdjustCardWidth();
         }
     }
 }

@@ -1,0 +1,78 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Карта объявлений</title>
+    <script src="https://api-maps.yandex.ru/2.1/?apikey=fa70c664-eaf2-4737-b767-462f3986cb18&lang=ru_RU"></script>
+    <style>
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        .info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+            max-width: 300px;
+            font-size: 12px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="info" id="info"></div>
+    <script>
+        var map, markers = [];
+
+        ymaps.ready(init);
+
+        function init() {
+            map = new ymaps.Map("map", {
+                center: [55.76, 37.64],
+                zoom: 10,
+                controls: ["zoomControl", "fullscreenControl", "typeSelector"]
+            });
+        }
+
+        function addMarkers(listings) {
+            // Удаляем старые метки
+            markers.forEach(function(m) { map.geoObjects.remove(m); });
+            markers = [];
+
+            listings.forEach(function(item) {
+                if (!item.lat || !item.lon) return;
+
+                var color = item.listing_type === "lost" ? "red" : "green";
+                var marker = new ymaps.Placemark([item.lat, item.lon], {
+                    balloonContentHeader: "<b>" + (item.pet_name || "Без имени") + "</b>",
+                    balloonContentBody: item.species + " • " + (item.breed || "") + "<br>" + (item.location || ""),
+                    balloonContentFooter: "<a href='#' onclick='window.external.openListing(\"" + item.id + "\")'>Подробнее</a>"
+                }, {
+                    preset: "islands#" + color + "Icon",
+                    openBalloonOnClick: true
+                });
+
+                map.geoObjects.add(marker);
+                markers.push(marker);
+            });
+
+            if (markers.length > 0) {
+                var bounds = map.geoObjects.getBounds();
+                if (bounds) map.setBounds(bounds, { checkZoomRange: true, zoomMargin: 50 });
+            }
+        }
+
+        function setLocation(lat, lon) {
+            map.setCenter([lat, lon], 14);
+        }
+    </script>
+</body>
+</html>
